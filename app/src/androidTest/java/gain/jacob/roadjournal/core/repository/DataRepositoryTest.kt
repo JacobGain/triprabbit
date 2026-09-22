@@ -1,0 +1,33 @@
+package gain.jacob.roadjournal.core.repository
+
+import android.net.Uri
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import gain.jacob.roadjournal.core.database.RoadJournalDatabase
+import gain.jacob.roadjournal.core.database.entity.*
+import gain.jacob.roadjournal.core.model.DistanceUnit
+import kotlinx.coroutines.runBlocking
+import org.junit.*
+import org.junit.Assert.*
+import org.junit.runner.RunWith
+import java.io.File
+import java.time.Instant
+
+@RunWith(AndroidJUnit4::class)
+class DataRepositoryTest {
+    private val context get()=ApplicationProvider.getApplicationContext<android.content.Context>()
+    private lateinit var db:RoadJournalDatabase;private lateinit var repository:DataRepositoryImpl;private lateinit var directory:File
+    @Before fun setup(){db=Room.inMemoryDatabaseBuilder(context,RoadJournalDatabase::class.java).allowMainThreadQueries().build();repository=DataRepositoryImpl(context,db);directory=File(context.cacheDir,"backup-tests").apply{mkdirs()}}
+    @After fun close(){db.close();directory.deleteRecursively()}
+    @Test fun jsonRoundTripRestoresVehiclesAndReadings()=runBlocking{seed();val file=File(directory,"backup.json");val summary=repository.exportBackup(Uri.fromFile(file));assertEquals(1,summary.vehicleCount);assertEquals(2,summary.readingCount);db.vehicleDao().deleteAll();assertTrue(db.vehicleDao().getAll().isEmpty());val restored=repository.restoreBackup(Uri.fromFile(file));assertEquals(1,restored.vehicleCount);assertEquals("Golf",db.vehicleDao().getAll().single().name);assertEquals(listOf(120_000L,120_350L),db.odometerReadingDao().getAll().map{it.value})}
+    @Test fun csvContainsChronologicalDifferences()=runBlocking{seed();val file=File(directory,"golf.csv");repository.exportVehicleCsv(Uri.fromFile(file),1);val text=file.readText();assertTrue(text.contains("date,odometer,unit,difference,note"));assertTrue(text.contains("\"120350\",\"km\",\"350\""))}
+    @Test fun invalidBackupDoesNotReplaceExistingData()=runBlocking{seed();val file=File(directory,"bad.json").apply{writeText("{\"version\":99,\"vehicles\":[]}")};assertTrue(runCatching{repository.restoreBackup(Uri.fromFile(file))}.isFailure);assertEquals("Golf",db.vehicleDao().getAll().single().name)}
+    @Test fun invalidReadingDoesNotReplaceExistingData()=runBlocking{
+        seed();val file=File(directory,"backup.json");repository.exportBackup(Uri.fromFile(file))
+        file.writeText(file.readText().replace("\"value\": 120000","\"value\": -1"))
+        assertTrue(runCatching{repository.restoreBackup(Uri.fromFile(file))}.isFailure)
+        assertEquals(listOf(120_000L,120_350L),db.odometerReadingDao().getAll().map{it.value})
+    }
+    private suspend fun seed(){db.vehicleDao().insertAll(listOf(VehicleEntity(1,"Golf","Volkswagen","Golf",2017,null,DistanceUnit.KILOMETERS,null,null,Instant.EPOCH,null)));db.odometerReadingDao().insertAll(listOf(OdometerReadingEntity(1,1,120_000,Instant.parse("2026-09-01T12:00:00Z"),null,Instant.EPOCH,null),OdometerReadingEntity(2,1,120_350,Instant.parse("2026-09-21T12:00:00Z"),"Trip",Instant.EPOCH,null)))}
+}
