@@ -8,5 +8,5 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "RoadJournal"
+rootProject.name = "RoadLog"
 include(":app")

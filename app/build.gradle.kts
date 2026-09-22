@@ -8,10 +8,10 @@ plugins {
 }
 
 android {
-    namespace = "gain.jacob.roadjournal"
+    namespace = "com.roadlog"
     compileSdk = 35
     defaultConfig {
-        applicationId = "gain.jacob.roadjournal"
+        applicationId = "com.roadlog"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
