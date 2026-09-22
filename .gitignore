@@ -12,3 +12,4 @@ app/release/
 *.jks
 *.keystore
 keystore.properties
+app/src/main/assets/adi-registration.properties
