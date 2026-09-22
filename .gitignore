@@ -6,10 +6,12 @@ build/
 */build/
 captures/
 .DS_Store
+# Local release artifacts and signing material
 app/release/
 *.apk
 *.aab
 *.jks
 *.keystore
-keystore.properties
+*.pepk
+/keystore.properties
 app/src/main/assets/adi-registration.properties

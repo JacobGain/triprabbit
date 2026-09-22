@@ -31,6 +31,29 @@ The project uses a Gradle Java 17 toolchain and can provision a compatible JDK a
 Connected tests require an Android device or emulator. The debug APK is written to
 `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Build a Play Store bundle
+
+Google Play requires an Android App Bundle (`.aab`) for a new app. Copy
+`keystore.properties.example` to the ignored `keystore.properties` file and fill
+in the upload-keystore path and credentials. Keep the keystore and both passwords
+backed up outside this repository; keep using that upload key unless Google Play
+has explicitly completed an upload-key reset.
+
+Build and validate the signed release bundle with:
+
+```sh
+./gradlew check bundleRelease
+jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+```
+
+The upload artifact is written to
+`app/build/outputs/bundle/release/app-release.aab`. In Android Studio, use
+**Build > Generate Signed Bundle or APK**, select **Android App Bundle** (not
+APK), select the `release` variant, and use the same upload keystore.
+
+The `.aab`, `keystore.properties`, and common keystore file extensions are
+ignored by Git. Never commit or send the upload key or its passwords.
+
 ## Data and privacy
 
 TripRabbit has no accounts, analytics, advertising, network backend, or automatic cloud backup. Vehicle data remains on the device unless the user explicitly exports a JSON backup or CSV file through Android's system file picker. Restoring a backup validates its records, presents a confirmation summary, and then atomically replaces the current local database.

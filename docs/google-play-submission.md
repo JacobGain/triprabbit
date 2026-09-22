@@ -95,6 +95,28 @@ Before every upload:
 10. Review Policy status and every item under Policy and programs > App content
    immediately before rollout; Google can add declarations or change policy.
 
+## Local bundle workflow
+
+The release signing configuration is loaded from the ignored root-level
+`keystore.properties` file. Start from `keystore.properties.example` on a new
+machine; do not copy credentials into Gradle files or commit the properties file
+or keystore.
+
+```sh
+./gradlew check bundleRelease
+jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+```
+
+Upload `app/build/outputs/bundle/release/app-release.aab`, not an APK. New Play
+apps use Play App Signing. This local key is the upload key; Google manages the
+separate app-signing key used for APKs delivered to users. Preserve an offline
+backup of the upload key and its credentials.
+
+Creating an app record in Play Console reserves operational choices such as the
+package name and signing setup. Do that only when the publisher is ready to use
+the developer account; generating and testing the signed bundle locally does not
+publish or upload anything.
+
 ## Privacy-policy hosting
 
 `docs/privacy-policy.html` is ready to host but is not public merely because it
