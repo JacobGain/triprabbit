@@ -1,4 +1,4 @@
-# RoadJournal
+# RoadLog
 
 A simple, private odometer history app for Android.
 
@@ -17,7 +17,7 @@ A simple, private odometer history app for Android.
 
 Kotlin, Jetpack Compose, Material 3, Navigation Compose, Room, DataStore, Hilt, Coroutines, Flow, and KSP.
 
-RoadJournal is fully local and requests no dangerous Android permissions.
+RoadLog is fully local and requests no dangerous Android permissions.
 
 ## Build and verify
 
@@ -33,4 +33,4 @@ Connected tests require an Android device or emulator. The debug APK is written 
 
 ## Data and privacy
 
-RoadJournal has no accounts, analytics, advertising, network backend, or automatic cloud backup. Vehicle data remains on the device unless the user explicitly exports a JSON backup or CSV file through Android's system file picker. Restoring a backup validates its records, presents a confirmation summary, and then atomically replaces the current local database.
+RoadLog has no accounts, analytics, advertising, network backend, or automatic cloud backup. Vehicle data remains on the device unless the user explicitly exports a JSON backup or CSV file through Android's system file picker. Restoring a backup validates its records, presents a confirmation summary, and then atomically replaces the current local database.

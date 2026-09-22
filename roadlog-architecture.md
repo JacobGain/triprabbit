@@ -1,8 +1,8 @@
-# RoadJournal
+# RoadLog
 
 ## 1. Product Overview
 
-RoadJournal is a simple, local-first Android application for recording and reviewing vehicle odometer readings.
+RoadLog is a simple, local-first Android application for recording and reviewing vehicle odometer readings.
 
 The application should replace the experience of an older discontinued odometer application while improving on it with:
 
@@ -106,14 +106,14 @@ Room / DataStore
 Use approximately:
 
 ```text
-gain.jacob.roadjournal
+com.roadlog
 │
-├── RoadJournalApplication.kt
+├── RoadLogApplication.kt
 ├── MainActivity.kt
 │
 ├── core
 │   ├── database
-│   │   ├── RoadJournalDatabase.kt
+│   │   ├── RoadLogDatabase.kt
 │   │   ├── dao
 │   │   ├── entity
 │   │   └── converter
@@ -481,7 +481,7 @@ enum class DisplayDensity {
 
 ## 13. Appearance / Theme System
 
-Customization is an important feature of RoadJournal.
+Customization is an important feature of RoadLog.
 
 Use Material 3 as the underlying design system.
 
@@ -661,7 +661,7 @@ On first launch:
 ### Screen 1
 
 ```text
-RoadJournal
+RoadLog
 
 Keep a simple history of your vehicle's mileage.
 ```
@@ -1143,7 +1143,7 @@ Data
   Import data
 
 About
-  RoadJournal
+  RoadLog
   Version
 ```
 
@@ -1217,7 +1217,7 @@ Keep those concepts separate.
 
 ## 32. Import / Restore
 
-Support restoring RoadJournal JSON exports.
+Support restoring RoadLog JSON exports.
 
 Before committing imported data:
 
@@ -1230,7 +1230,7 @@ Before committing imported data:
 Example:
 
 ```text
-Import RoadJournal backup?
+Import RoadLog backup?
 
 3 vehicles
 147 readings
@@ -1504,7 +1504,7 @@ Use Hilt.
 Provide singletons for:
 
 ```text
-RoadJournalDatabase
+RoadLogDatabase
 VehicleDao
 OdometerReadingDao
 VehicleRepository
@@ -1645,7 +1645,7 @@ Create reusable components only where repetition exists.
 Candidates:
 
 ```text
-RoadJournalTopAppBar
+RoadLogTopAppBar
 OdometerDisplay
 VehicleSelector
 VehicleCard
@@ -1849,13 +1849,13 @@ Avoid alpha/beta libraries unless they solve a specific requirement.
 Repository:
 
 ```text
-roadjournal/
+roadlog/
 ```
 
 Suggested top-level files:
 
 ```text
-roadjournal/
+roadlog/
 ├── app/
 ├── gradle/
 ├── .github/
@@ -1884,7 +1884,7 @@ docs/
 Initial README should include:
 
 ```text
-# RoadJournal
+# RoadLog
 
 A simple, private odometer history app for Android.
 
@@ -2032,7 +2032,7 @@ These should not influence the first implementation enough to make V1 complicate
 Optimize for this interaction:
 
 ```text
-Open RoadJournal
+Open RoadLog
 ↓
 Tap Add Reading
 ↓
@@ -2243,7 +2243,7 @@ When generating the implementation:
 
 ## 69. First-Pass Agent Objective
 
-Implement a functional Android application called **RoadJournal** based on this specification.
+Implement a functional Android application called **RoadLog** based on this specification.
 
 Prioritize:
 
