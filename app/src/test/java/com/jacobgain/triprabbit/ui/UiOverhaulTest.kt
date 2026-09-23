@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -74,6 +76,20 @@ class UiOverhaulTest {
         }
     }
 
+    @Test fun customAccentChangesTheAppPalette() {
+        var selected = Color.Unspecified
+        var background = Color.Unspecified
+        compose.setContent {
+            TripRabbitTheme(AppSettings(themeMode = ThemeMode.LIGHT, accentColor = 0x3456AB)) {
+                selected = MaterialTheme.colorScheme.primary
+                background = MaterialTheme.colorScheme.background
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(Color(0xFF3456AB), selected)
+        assertNotEquals(Color(0xFFF6F7F3), background)
+    }
+
     @Test fun dashboardLight() {
         var added: Long? = null
         render(tab = "home") { DashboardContent(dashboard, onAdd = { added = it }) }
@@ -132,13 +148,12 @@ class UiOverhaulTest {
         compose.onNodeWithText("Save Reading").performScrollTo().assertIsNotEnabled()
     }
 
-    @Test fun dateAndTimePickerUpdatesTheReading() {
+    @Test fun datePickerUpdatesTheReadingWithoutRequiringTime() {
         var changed: Instant? = null
         render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), recordedAt = now), onDate = { changed = it }) }
-        compose.onNodeWithContentDescription("Choose date and time").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Choose date").performScrollTo().performClick()
         compose.onNodeWithText("Next").performClick()
-        compose.onNodeWithText("Apply").performClick()
-        assertEquals(now.truncatedTo(ChronoUnit.MINUTES), changed)
+        assertEquals(now.atZone(java.time.ZoneId.systemDefault()).toLocalDate(), changed?.atZone(java.time.ZoneId.systemDefault())?.toLocalDate())
     }
 
     @Test fun editReadingRequiresConfirmation() {
@@ -168,21 +183,43 @@ class UiOverhaulTest {
         capture("vehicles")
     }
 
+    @Test fun compactGarageUsesShortRows() {
+        render { VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car")), 1,
+            mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMPACT, {}, {}, {}, {}) }
+        capture("vehicles-compact")
+        compose.onNodeWithText("Daily driver").assertIsDisplayed()
+        compose.onNodeWithText("124,850 km").assertIsDisplayed()
+        compose.onNodeWithText("Vehicle details").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Current vehicle").assertExists()
+    }
+
     @Test fun vehicleDetails() { render { VehicleDetailsContent(VehicleDetailsUiState(false, vehicle, readings)) }; capture("vehicle-details") }
 
     @Test fun settings() {
-        render(tab = "settings") { SettingsContent(SettingsUiState(selectedVehicle = vehicle)) }
+        render(tab = "settings") { SettingsContent(SettingsUiState()) }
         capture("settings-light")
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("About"))
         capture("settings-data")
     }
 
-    @Test fun settingsDark() { render(dark = true, tab = "settings") { SettingsContent(SettingsUiState(settings = AppSettings(themeMode = ThemeMode.DARK), selectedVehicle = vehicle)) }; capture("settings-dark") }
+    @Test fun settingsDark() { render(dark = true, tab = "settings") { SettingsContent(SettingsUiState(settings = AppSettings(themeMode = ThemeMode.DARK))) }; capture("settings-dark") }
+
+    @Test fun accentDialogAppliesOnlyOnConfirmation() {
+        var chosen: Int? = null
+        render { SettingsContent(SettingsUiState(), SettingsActions(accent = { chosen = it })) }
+        compose.onNodeWithText("Change accent colour").performClick()
+        capture("accent-dialog")
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).onFirst()
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(100f) }
+        compose.runOnIdle { assertNull(chosen) }
+        compose.onNodeWithText("Apply").performClick()
+        compose.runOnIdle { assertEquals(0x646B53, chosen) }
+    }
 
     @Test fun privacy() { render { PrivacyPolicyScreen {} }; capture("privacy") }
 
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun settingsLargeText() {
-        render(fontScale = 2f, tab = "settings") { SettingsContent(SettingsUiState(selectedVehicle = vehicle)) }
+        render(fontScale = 2f, tab = "settings") { SettingsContent(SettingsUiState()) }
         capture("settings-large-text")
     }
 
@@ -242,5 +279,5 @@ class UiOverhaulTest {
         capture("icon-family")
     }
 
-    private fun Instant.inputDate(): String = atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    private fun Instant.inputDate(): String = atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 }

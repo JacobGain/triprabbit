@@ -8,6 +8,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +44,16 @@ private val DarkColors = darkColorScheme(
     surfaceTint = Color(0xFFA8D5B1),
 )
 
+private fun retint(color: Color, accent: Color): Color {
+    val sourceHsv = FloatArray(3)
+    val accentHsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), sourceHsv)
+    android.graphics.Color.colorToHSV(accent.toArgb(), accentHsv)
+    sourceHsv[0] = accentHsv[0]
+    sourceHsv[1] *= accentHsv[1]
+    return Color(android.graphics.Color.HSVToColor(sourceHsv))
+}
+
 private val AppTypography = Typography(
     displayMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 46.sp, lineHeight = 52.sp, letterSpacing = (-1.8).sp),
     displaySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 38.sp, lineHeight = 44.sp, letterSpacing = (-1.2).sp),
@@ -72,7 +83,27 @@ fun TripRabbitTheme(settings: AppSettings = AppSettings(), content: @Composable 
             }
         }
     }
-    val colors = if (dark) DarkColors else LightColors
+    val base = if (dark) DarkColors else LightColors
+    val colors = settings.accentColor?.let { rgb ->
+        val accent = Color(rgb or (0xFF shl 24))
+        val brightness = .2126f * accent.red + .7152f * accent.green + .0722f * accent.blue
+        val primary = when {
+            dark && brightness < .35f -> androidx.compose.ui.graphics.lerp(accent, Color.White, .45f)
+            !dark && brightness > .85f -> androidx.compose.ui.graphics.lerp(accent, Color.Black, .35f)
+            else -> accent
+        }
+        val container = if (dark) androidx.compose.ui.graphics.lerp(primary, Color.Black, .62f) else androidx.compose.ui.graphics.lerp(primary, Color.White, .84f)
+        val foreground = if ((.2126f * primary.red + .7152f * primary.green + .0722f * primary.blue) > .55f) Color.Black else Color.White
+        base.copy(primary = primary, onPrimary = foreground, primaryContainer = container,
+            onPrimaryContainer = if (dark) Color.White else Color.Black, surfaceTint = accent,
+            secondary = primary, secondaryContainer = container, onSecondaryContainer = if (dark) Color.White else Color.Black,
+            background = retint(base.background, accent), surface = retint(base.surface, accent),
+            onBackground = retint(base.onBackground, accent), onSurface = retint(base.onSurface, accent),
+            onSurfaceVariant = retint(base.onSurfaceVariant, accent), surfaceVariant = retint(base.surfaceVariant, accent),
+            surfaceContainer = retint(base.surfaceContainer, accent), surfaceContainerLow = retint(base.surfaceContainerLow, accent),
+            surfaceContainerHigh = retint(base.surfaceContainerHigh, accent), surfaceContainerHighest = retint(base.surfaceContainerHighest, accent),
+            outline = retint(base.outline, accent), outlineVariant = retint(base.outlineVariant, accent))
+    } ?: base
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = Shapes(
         small = RoundedCornerShape(10.dp), medium = RoundedCornerShape(16.dp),
         large = RoundedCornerShape(24.dp), extraLarge = RoundedCornerShape(32.dp),
