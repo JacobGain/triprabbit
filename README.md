@@ -19,6 +19,24 @@ Kotlin, Jetpack Compose, Material 3, Navigation Compose, Room, DataStore, Hilt, 
 
 TripRabbit is fully local and requests no dangerous Android permissions.
 
+## UI
+
+The Compose UI uses an evergreen and warm-neutral design system, temporary `TR`
+branding pending commissioned artwork, and a consistent outline control icon
+family. Onboarding, dashboard, history, reports, forms, vehicles, settings, and
+privacy share typography, surfaces, controls, and light/dark palettes. Home /
+History / Reports / Settings navigation keeps the main destinations close.
+
+Vehicle management is available from Home and the vehicle selector. History
+supports search and All Readings / This Month / With Notes filters; Reports
+includes CSV export. Reading forms include date/time pickers. The branded palette
+is the default, with system colours still available in Settings. Custom PNG
+artwork can be added through the slots documented in [UI assets](docs/ui-assets.md).
+
+The mockup's GPS trip tracking, business/personal classification, and tax
+deductions are not implemented. Screens show actual local odometer data;
+weekly bars attribute measured intervals to the day the ending reading was logged.
+
 ## Build and verify
 
 The project uses a Gradle Java 17 toolchain and can provision a compatible JDK automatically.
@@ -30,6 +48,16 @@ The project uses a Gradle Java 17 toolchain and can provision a compatible JDK a
 
 Connected tests require an Android device or emulator. The debug APK is written to
 `app/build/outputs/apk/debug/app-debug.apk`.
+
+Local UI rendering and interaction tests run with Robolectric (no device needed):
+
+```sh
+./gradlew testDebugUnitTest --tests 'com.jacobgain.triprabbit.ui.UiOverhaulTest'
+```
+
+These render the production screens in light/dark themes and at a large font size,
+exercise search, filters, validation and deletion, and write review PNGs to
+`app/build/reports/ui/`. The first run downloads the Android test runtime.
 
 ## Build a Play Store bundle
 
