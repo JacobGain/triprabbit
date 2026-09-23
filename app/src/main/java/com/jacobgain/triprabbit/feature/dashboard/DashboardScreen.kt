@@ -59,7 +59,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
         }
     }
     if (state.loading) { LoadingState(); return }
-    if (vehicle == null) { EmptyState("Make room for your miles", "Add a vehicle to start a private, organised mileage history.", "Add Vehicle", onManageVehicles); return }
+    if (vehicle == null) { EmptyState("No vehicle selected", "Add a vehicle to start logging mileage.", "Add vehicle", onManageVehicles); return }
     val latest = state.readings.firstOrNull()
     val sinceLast = latest?.value?.minus(state.readings.getOrNull(1)?.value ?: latest.value) ?: 0
     val unit = vehicle.odometerUnit.abbreviation
@@ -67,10 +67,9 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 BrandHeader(Modifier.weight(1f))
-                FilledTonalIconButton(onClick = onManageVehicles, shape = MaterialTheme.shapes.medium) { TripIcon(AppIcon.Car, "Vehicles") }
+                FilledTonalButton(onClick = onManageVehicles, shape = MaterialTheme.shapes.medium) { TripIcon(AppIcon.Garage); Spacer(Modifier.width(6.dp)); Text("Garage") }
             }
         }
-        item { PageHeading("A little more clarity.", "Your mileage, all in one place.") }
         item {
             Surface(onClick = { selectorOpen = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -110,19 +109,19 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
             first = { MetricTile("Last 30 days", "${state.stats.last30Days.grouped()} $unit", it, icon = AppIcon.History) },
             second = { MetricTile("Total tracked", "${state.stats.totalTracked.grouped()} $unit", it, icon = AppIcon.Distance) },
         ) }
-        item { BrandArtworkSlot(BrandArtwork.dashboard) }
         item { SectionCard {
             SectionTitle("Your week", "Distance recorded over the last 7 days", "Reports") { onStatistics(vehicle.id) }
             WeeklyMileageChart(state.readings, vehicle.odometerUnit)
         } }
         item { SectionCard {
             SectionTitle("Recent readings", "${state.stats.readingCount} readings in your history", "View History") { onHistory(vehicle.id) }
-            if (state.readings.isEmpty()) Text("Your next chapter starts with a reading.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.readings.isEmpty()) Text("No recent readings.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             state.readings.take(3).forEachIndexed { index, reading ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(AppIcon.Gauge)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        reading.name?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
                         Text("${reading.value.grouped()} $unit", style = MaterialTheme.typography.titleMedium)
                         Text(reading.recordedAt.displayDate(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -134,7 +133,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 TripIcon(AppIcon.Shield, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Text("Just your miles. Just on your device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Data securely saved on your device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -26,12 +26,11 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         BrandHeader()
         Spacer(Modifier.height(12.dp))
-        BrandArtworkSlot(BrandArtwork.welcome)
-        PageHeading("Miles for\nwhat matters.", "A calmer way to keep track of your vehicle’s mileage. No accounts. No distractions.")
+        PageHeading("Track your mileage", "Log readings and review your trips in one place.")
         Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             WelcomeFeature(AppIcon.Gauge, "Log in a moment", "One reading. An organised history.")
-            WelcomeFeature(AppIcon.Reports, "See the bigger picture", "Understand your mileage over time.")
-            WelcomeFeature(AppIcon.Shield, "Yours, and only yours", "Your records stay on your device.")
+            WelcomeFeature(AppIcon.Reports, "Review reports", "See distance over time.")
+            WelcomeFeature(AppIcon.Shield, "Local storage", "Your records stay on your device.")
         }
         PrimaryAction("Get Started", onGetStarted, icon = AppIcon.Chevron)
         Text("Start with a vehicle. Build from there.", style = MaterialTheme.typography.bodySmall,
@@ -60,8 +59,8 @@ fun VehicleEditorContent(state: VehicleEditorUiState, onBack: () -> Unit = {},
     Scaffold(topBar = { DetailTopBar(if (state.editing) "Edit Vehicle" else "Create Vehicle", onBack) }) { padding ->
         if (state.loading) { LoadingState(Modifier.padding(padding)); return@Scaffold }
         LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            item { PageHeading(if (state.editing) "Make it yours." else "Meet your vehicle.",
-                if (state.editing) "Keep the details up to date." else "Give it a name and a starting point.") }
+            item { PageHeading(if (state.editing) "Edit vehicle" else "Add vehicle",
+                if (state.editing) "" else "Enter a name and starting odometer reading.") }
             item { SectionCard {
                 SectionTitle("The essentials")
                 FormField(state.name, { value -> onUpdate { it.copy(name = value, error = null) } }, "Vehicle name", hint = "For example, Daily driver or Civic", enabled = !state.saving)
@@ -103,11 +102,28 @@ fun VehicleListScreen(vehicles: List<Vehicle>, selectedId: Long?, latestValues: 
         ExtendedFloatingActionButton(onClick = onAdd, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
             shape = MaterialTheme.shapes.medium, icon = { TripIcon(AppIcon.Add, "Add Vehicle") }, text = { Text("Add Vehicle") })
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 12.dp, 20.dp, 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { PageHeading("Your garage.", "${vehicles.size} ${if (vehicles.size == 1) "vehicle" else "vehicles"} · each with its own story") }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 12.dp, 20.dp, 100.dp),
+            verticalArrangement = Arrangement.spacedBy(if (density == DisplayDensity.COMPACT) 8.dp else 16.dp)) {
+            item { PageHeading("Garage", "${vehicles.size} ${if (vehicles.size == 1) "vehicle" else "vehicles"}") }
             if (vehicles.isEmpty()) item { EmptyState("Room for your first vehicle", "Add a vehicle to start keeping track of your mileage.", "Add Vehicle", onAdd) }
             items(vehicles, key = { it.id }) { vehicle ->
-                SectionCard {
+                if (density == DisplayDensity.COMPACT) {
+                    Surface(onClick = { onOpen(vehicle.id) }, modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            IconBadge(AppIcon.Car, accented = vehicle.id == selectedId)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(vehicle.name, style = MaterialTheme.typography.titleSmall)
+                                Text(latestValues[vehicle.id]?.let { "${it.grouped()} ${vehicle.odometerUnit.abbreviation}" } ?: "No reading",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (vehicle.id == selectedId) TripIcon(AppIcon.Check, "Current vehicle", tint = MaterialTheme.colorScheme.primary)
+                            else TextButton(onClick = { onSelect(vehicle.id) }) { Text("Make current") }
+                            TripIcon(AppIcon.Chevron, "Vehicle details", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else SectionCard {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         IconBadge(AppIcon.Car, accented = vehicle.id == selectedId)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -116,7 +132,7 @@ fun VehicleListScreen(vehicles: List<Vehicle>, selectedId: Long?, latestValues: 
                         }
                     }
                     if (vehicle.id == selectedId) StatusPill("Current vehicle", icon = AppIcon.Check)
-                    if (density == DisplayDensity.COMFORTABLE) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     latestValues[vehicle.id]?.let { value ->
                         Text("${value.grouped()} ${vehicle.odometerUnit.abbreviation}", style = MaterialTheme.typography.headlineSmall)
                     }
@@ -157,7 +173,7 @@ fun VehicleDetailsContent(state: VehicleDetailsUiState, onBack: () -> Unit = {},
         if (state.loading) LoadingState(Modifier.padding(padding))
         else if (vehicle == null) Box(Modifier.padding(padding)) { EmptyState("Vehicle not found", "It may have been archived or deleted.", "Go Back", onBack) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            item { PageHeading(vehicle.name, vehicle.subtitle() ?: "Your vehicle, at a glance.", action = { IconBadge(AppIcon.Car, accented = true) }) }
+            item { PageHeading(vehicle.name, vehicle.subtitle().orEmpty(), action = { IconBadge(AppIcon.Car, accented = true) }) }
             item { SectionCard {
                 SectionTitle("Current odometer")
                 state.readings.firstOrNull()?.let { OdometerDisplay(it.value, vehicle.odometerUnit) } ?: Text("No readings yet")
