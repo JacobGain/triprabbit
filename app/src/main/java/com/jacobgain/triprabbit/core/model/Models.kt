@@ -26,6 +26,8 @@ data class OdometerReading(
     val note: String?,
     val createdAt: Instant,
     val updatedAt: Instant?,
+    val name: String? = null,
+    val hasTime: Boolean = false,
 )
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -38,6 +40,7 @@ data class AppSettings(
     val displayDensity: DisplayDensity = DisplayDensity.COMFORTABLE,
     val showVehicleDetails: Boolean = true,
     val confirmReadingDeletion: Boolean = true,
+    val accentColor: Int? = null,
 )
 
 data class MileageStats(

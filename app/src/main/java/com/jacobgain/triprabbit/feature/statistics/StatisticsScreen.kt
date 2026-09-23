@@ -33,6 +33,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneOffset
+import java.time.Instant
 
 data class StatisticsUiState(val loading: Boolean = true, val vehicle: Vehicle? = null,
     val readings: List<OdometerReading> = emptyList(), val stats: MileageStats = MileageStats())
@@ -52,13 +56,13 @@ class StatisticsViewModel @Inject constructor(saved: SavedStateHandle, vehicles:
     val effects = messages.receiveAsFlow()
     var exporting by mutableStateOf(false)
         private set
-    fun export(uri: Uri, vehicleId: Long) {
+    fun export(uri: Uri, vehicleId: Long, from: LocalDate, through: LocalDate, pdf: Boolean) {
         if (exporting) return
         viewModelScope.launch {
             exporting = true
             try {
-                withContext(Dispatchers.IO) { data.exportVehicleCsv(uri, vehicleId) }
-                messages.send("CSV exported")
+                withContext(Dispatchers.IO) { data.exportVehicleReport(uri, vehicleId, from, through, pdf) }
+                messages.send(if (pdf) "PDF exported" else "CSV exported")
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 messages.send(error.message ?: "Could not export readings.")
@@ -73,28 +77,36 @@ fun StatisticsScreen(onBack: (() -> Unit)?, onManageVehicles: () -> Unit = {}, v
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val vehicle = state.vehicle
     val snackbar = remember { SnackbarHostState() }
-    var exportVehicleId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        val id = exportVehicleId
-        if (uri != null && id != null) viewModel.export(uri, id)
-        exportVehicleId = null
+    var fromText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(YearMonth.now().atDay(1).toString()) }
+    var throughText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    val from = runCatching { LocalDate.parse(fromText) }.getOrNull()
+    val through = runCatching { LocalDate.parse(throughText) }.getOrNull()
+    val validRange = from != null && through != null && !through.isBefore(from)
+    val csv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null && vehicle != null && validRange) viewModel.export(uri, vehicle.id, from!!, through!!, false)
+    }
+    val pdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null && vehicle != null && validRange) viewModel.export(uri, vehicle.id, from!!, through!!, true)
     }
     LaunchedEffect(viewModel) { viewModel.effects.collect { snackbar.showSnackbar(it) } }
     StatisticsContent(state, onBack, viewModel.exporting, snackbar,
-        onExport = { vehicle?.let { exportVehicleId = it.id; export.launch("${it.name}-odometer.csv") } },
+        fromText = fromText, onFrom = { fromText = it }, throughText = throughText, onThrough = { throughText = it }, validRange = validRange,
+        onExport = { vehicle?.let { csv.launch("${it.name}-mileage.csv") } },
+        onExportPdf = { vehicle?.let { pdf.launch("${it.name}-mileage.pdf") } },
         onManageVehicles = onManageVehicles)
 }
 
 @Composable
 fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, exporting: Boolean = false,
     snackbar: SnackbarHostState = remember { SnackbarHostState() }, onExport: () -> Unit = {},
-    onManageVehicles: () -> Unit = {}) {
+    onManageVehicles: () -> Unit = {}, fromText: String = YearMonth.now().atDay(1).toString(), onFrom: (String) -> Unit = {},
+    throughText: String = LocalDate.now().toString(), onThrough: (String) -> Unit = {}, validRange: Boolean = true, onExportPdf: () -> Unit = {}) {
     val vehicle = state.vehicle
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, topBar = { if (onBack != null) DetailTopBar("Reports", onBack) }) { padding ->
         if (state.loading) LoadingState(Modifier.padding(padding))
         else if (vehicle == null) Box(Modifier.padding(padding)) { EmptyState("No vehicle selected", "Choose a vehicle to see its mileage reports.", "Vehicles", onManageVehicles) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp,24.dp,20.dp,28.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            item { PageHeading("The bigger picture.", "Mileage insights for ${vehicle.name}") }
+            item { PageHeading(if (onBack == null) "Reports" else vehicle.name, if (onBack == null) vehicle.name else "") }
             item {
                 Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.primary,
                     contentColor=MaterialTheme.colorScheme.onPrimary) {
@@ -133,12 +145,34 @@ fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, ex
                 Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.primaryContainer) {
                     Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         TripIcon(AppIcon.Download,modifier=Modifier.size(28.dp))
-                        Text("Ready when you need it.", style = MaterialTheme.typography.titleLarge)
-                        Text("Export this vehicle’s odometer readings, dates, and notes in one CSV file.", style = MaterialTheme.typography.bodyMedium)
-                        PrimaryAction("Export CSV",onExport,icon=AppIcon.Download,busy=exporting)
+                        Text("Export mileage", style = MaterialTheme.typography.titleLarge)
+                        Text("Choose a date range. Each entry includes its trip name, notes, odometer, and distance travelled.", style = MaterialTheme.typography.bodyMedium)
+                        ReportDateField("From", fromText, onFrom)
+                        ReportDateField("Through", throughText, onThrough)
+                        if (!validRange) Text("Enter a valid date range.", color = MaterialTheme.colorScheme.error)
+                        PrimaryAction("Export PDF", onExportPdf, icon = AppIcon.Download, enabled = validRange, busy = exporting)
+                        OutlinedButton(onClick = onExport, enabled = validRange && !exporting, modifier = Modifier.fillMaxWidth()) { Text("Export CSV") }
                     }
                 }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportDateField(label: String, value: String, onValue: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    if (showPicker) {
+        val initial = runCatching { LocalDate.parse(value) }.getOrDefault(LocalDate.now())
+        val picker = rememberDatePickerState(initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(onDismissRequest = { showPicker = false }, confirmButton = {
+            TextButton(onClick = {
+                picker.selectedDateMillis?.let { onValue(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()) }
+                showPicker = false
+            }) { Text("Apply") }
+        }, dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel") } }) { DatePicker(picker) }
+    }
+    OutlinedTextField(value, onValue, label = { Text("$label (yyyy-MM-dd)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+        trailingIcon = { IconButton(onClick = { showPicker = true }) { TripIcon(AppIcon.History, "Choose $label date") } })
 }

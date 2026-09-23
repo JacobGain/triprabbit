@@ -19,7 +19,9 @@ class CreateVehicleUseCase @Inject constructor(
         ReadingValidator.validate(initialValue, null, null)?.let { throw it }
         val id = database.withTransaction {
             val vehicleId = vehicles.createVehicle(input, recordedAt)
-            readings.addReading(vehicleId, initialValue, recordedAt, null, recordedAt)
+            val initialDate = recordedAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()
+            readings.addReading(vehicleId, initialValue, initialDate, null, recordedAt)
             vehicleId
         }
         settings.setSelectedVehicle(id)
@@ -29,20 +31,20 @@ class CreateVehicleUseCase @Inject constructor(
 }
 
 class AddOdometerReadingUseCase @Inject constructor(private val vehicles: VehicleRepository, private val readings: OdometerRepository) {
-    suspend operator fun invoke(vehicleId: Long, value: Long, recordedAt: Instant, note: String?): Long {
+    suspend operator fun invoke(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, name: String? = null, hasTime: Boolean = false): Long {
         if (vehicles.getVehicle(vehicleId) == null) throw com.jacobgain.triprabbit.core.validation.ReadingError.VehicleMissing
         val (previous, next) = readings.surrounding(vehicleId, recordedAt)
         ReadingValidator.validate(value, previous, next)?.let { throw it }
-        return readings.addReading(vehicleId, value, recordedAt, note?.trim()?.takeIf { it.isNotEmpty() }, Instant.now())
+        return readings.addReading(vehicleId, value, recordedAt, note?.trim()?.takeIf { it.isNotEmpty() }, Instant.now(), name?.trim()?.takeIf { it.isNotEmpty() }, hasTime)
     }
 }
 
 class EditOdometerReadingUseCase @Inject constructor(private val readings: OdometerRepository) {
-    suspend operator fun invoke(id: Long, value: Long, recordedAt: Instant, note: String?) {
+    suspend operator fun invoke(id: Long, value: Long, recordedAt: Instant, note: String?, name: String? = null, hasTime: Boolean = false) {
         val current = readings.getReading(id) ?: throw com.jacobgain.triprabbit.core.validation.ReadingError.ReadingMissing
         val (previous, next) = readings.surrounding(current.vehicleId, recordedAt, id)
         ReadingValidator.validate(value, previous, next)?.let { throw it }
-        readings.updateReading(current.copy(value = value, recordedAt = recordedAt, note = note?.trim()?.takeIf { it.isNotEmpty() }, updatedAt = Instant.now()))
+        readings.updateReading(current.copy(value = value, recordedAt = recordedAt, note = note?.trim()?.takeIf { it.isNotEmpty() }, name = name?.trim()?.takeIf { it.isNotEmpty() }, hasTime = hasTime, updatedAt = Instant.now()))
     }
 }
 

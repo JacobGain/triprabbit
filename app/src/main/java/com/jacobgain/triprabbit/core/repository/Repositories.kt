@@ -3,6 +3,7 @@ package com.jacobgain.triprabbit.core.repository
 import com.jacobgain.triprabbit.core.model.*
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
+import java.time.LocalDate
 import android.net.Uri
 
 interface VehicleRepository {
@@ -22,7 +23,7 @@ interface OdometerRepository {
     fun observeReading(id: Long): Flow<OdometerReading?>
     suspend fun getReading(id: Long): OdometerReading?
     suspend fun surrounding(vehicleId: Long, at: Instant, excludingId: Long = -1): Pair<OdometerReading?, OdometerReading?>
-    suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant): Long
+    suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String? = null, hasTime: Boolean = false): Long
     suspend fun updateReading(reading: OdometerReading)
     suspend fun deleteReading(id: Long)
 }
@@ -34,6 +35,7 @@ interface SettingsRepository {
     suspend fun setThemeMode(value: ThemeMode)
     suspend fun setDisplayDensity(value: DisplayDensity)
     suspend fun setConfirmReadingDeletion(value: Boolean)
+    suspend fun setAccentColor(value: Int?)
 }
 
 data class BackupSummary(val vehicleCount: Int, val readingCount: Int, val exportedAt: Instant)
@@ -42,4 +44,5 @@ interface DataRepository {
     suspend fun inspectBackup(uri: Uri): BackupSummary
     suspend fun restoreBackup(uri: Uri): BackupSummary
     suspend fun exportVehicleCsv(uri: Uri, vehicleId: Long)
+    suspend fun exportVehicleReport(uri: Uri, vehicleId: Long, from: LocalDate, through: LocalDate, pdf: Boolean)
 }

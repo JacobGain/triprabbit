@@ -31,17 +31,17 @@ import java.time.format.DateTimeFormatter
 fun AddReadingScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: AddReadingViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.effects.collectLatest { if (it is ReadingEffect.Saved) onSaved(it.message) } }
-    AddReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() })
+    AddReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, viewModel::nameChanged, viewModel::timeChanged)
 }
 
 @Composable
 fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue: (String) -> Unit = {},
-    onDate: (Instant) -> Unit = {}, onNote: (String) -> Unit = {}, onSave: () -> Unit = {}) {
-    var dateText by rememberSaveable { mutableStateOf(state.recordedAt.inputDateTime()) }
-    val dateValid = dateText.parseDateTime() != null
+    onDate: (Instant) -> Unit = {}, onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}) {
+    var dateText by rememberSaveable { mutableStateOf(state.recordedAt.inputDate()) }
+    val dateValid = if (state.hasTime) dateText.parseDateTime() != null else dateText.parseInputDate() != null
     Scaffold(topBar = { DetailTopBar("Add Reading", onBack) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            PageHeading("Keep the story going.", "Log your odometer. We’ll do the maths.")
+            PageHeading("Add reading", "")
             SectionCard {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(AppIcon.Car, accented = true)
@@ -64,8 +64,12 @@ fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue
             }
             SectionCard {
                 SectionTitle("Reading details")
-                ReadingDateTimeField(dateText, { dateText = it; it.parseDateTime()?.let(onDate) }, enabled = !state.saving)
-                FormField(state.note, onNote, "Note (optional)", hint = "A little context for future you.", singleLine = false, enabled = !state.saving)
+                FormField(state.name, onName, "Trip name (optional)", hint = "For example, 123 Main Street", enabled = !state.saving)
+                ReadingDateTimeField(dateText, { dateText = it; (if (state.hasTime) it.parseDateTime() else it.parseInputDate())?.let(onDate) }, state.hasTime, { enabled ->
+                    dateText = if (enabled) (dateText.parseInputDate() ?: state.recordedAt).inputDateTime() else (dateText.parseDateTime() ?: state.recordedAt).inputDate()
+                    onTime(enabled); (if (enabled) dateText.parseDateTime() else dateText.parseInputDate())?.let(onDate)
+                }, enabled = !state.saving)
+                FormField(state.note, onNote, "Note (optional)", singleLine = false, enabled = !state.saving)
             }
             state.error?.let { InlineMessage(it, error = true) }
             PrimaryAction("Save Reading", onSave, icon = AppIcon.Check, enabled = dateValid && state.vehicle != null, busy = state.saving)
@@ -93,7 +97,7 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
             else -> true
         }
         matchesFilter && (query.isBlank() || listOf(item.reading.value.toString(), item.reading.value.grouped(),
-            item.reading.note.orEmpty(), item.reading.recordedAt.displayDate()).any { it.contains(query, ignoreCase = true) })
+            item.reading.name.orEmpty(), item.reading.note.orEmpty(), item.reading.recordedAt.displayDate()).any { it.contains(query, ignoreCase = true) })
     }
     val unit = state.vehicle?.odometerUnit?.abbreviation.orEmpty()
     Scaffold(topBar = { if (onBack != null) DetailTopBar("History", onBack) },
@@ -104,9 +108,9 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
         } }) { padding ->
         if (state.loading) { LoadingState(Modifier.padding(padding)); return@Scaffold }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 24.dp, 20.dp, 100.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { PageHeading("History", state.vehicle?.let { "${it.name} History" } ?: "Every reading, in order.") }
+            item { PageHeading(if (onBack == null) "History" else state.vehicle?.name ?: "History", if (onBack == null) state.vehicle?.name.orEmpty() else "") }
             item {
-                OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search readings or notes") },
+                OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search names, readings or notes") },
                     leadingIcon = { TripIcon(AppIcon.Search) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { TripIcon(AppIcon.Close, "Clear search") } },
                     singleLine = true, shape = MaterialTheme.shapes.medium,
                     colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -143,8 +147,9 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             IconBadge(AppIcon.Gauge)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("${item.reading.value.grouped()} $unit", style = MaterialTheme.typography.titleMedium)
-                                Text(item.reading.recordedAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d · h:mm a")),
+                                item.reading.name?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
+                                Text("${item.reading.value.grouped()} $unit", style = if (item.reading.name == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium)
+                                Text(if (item.reading.hasTime) item.reading.recordedAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d · h:mm a")) else item.reading.recordedAt.displayDate(),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             TripIcon(AppIcon.Chevron, "Edit reading", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -164,30 +169,34 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
 fun EditReadingScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: EditReadingViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.effects.collectLatest { if (it is ReadingEffect.Saved) onSaved(it.message) } }
-    EditReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, { viewModel.delete() })
+    EditReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, { viewModel.delete() }, viewModel::nameChanged, viewModel::timeChanged)
 }
 
 @Composable
 fun EditReadingContent(state: EditReadingUiState, onBack: () -> Unit = {}, onValue: (String) -> Unit = {}, onDate: (Instant) -> Unit = {},
-    onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onDelete: () -> Unit = {}) {
+    onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onDelete: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}) {
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    var dateText by rememberSaveable(state.reading?.id) { mutableStateOf(state.recordedAt.inputDateTime()) }
+    var dateText by rememberSaveable(state.reading?.id) { mutableStateOf(if (state.hasTime) state.recordedAt.inputDateTime() else state.recordedAt.inputDate()) }
     if (confirmDelete) DestructiveConfirmationDialog("Delete this reading?", "This removes the reading from your history and recalculates your mileage. This cannot be undone.",
         { confirmDelete = false; onDelete() }, { confirmDelete = false })
     Scaffold(topBar = { DetailTopBar("Edit Reading", onBack) }) { padding ->
         if (state.loading) LoadingState(Modifier.padding(padding))
         else if (state.reading == null) Box(Modifier.padding(padding)) { EmptyState("Reading not found", "It may have already been deleted.", "Go Back", onBack) }
         else Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            PageHeading("The details matter.", "Update your reading and keep your history accurate.")
+            PageHeading("Edit reading", "")
             SectionCard {
                 SectionTitle("Odometer reading")
                 FormField(state.value, onValue, "Odometer reading", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     textStyle = MaterialTheme.typography.headlineMedium, enabled = !state.saving)
-                ReadingDateTimeField(dateText, { dateText = it; it.parseDateTime()?.let(onDate) }, enabled = !state.saving)
+                FormField(state.name, onName, "Trip name (optional)", enabled = !state.saving)
+                ReadingDateTimeField(dateText, { dateText = it; (if (state.hasTime) it.parseDateTime() else it.parseInputDate())?.let(onDate) }, state.hasTime, { enabled ->
+                    dateText = if (enabled) (dateText.parseInputDate() ?: state.recordedAt).inputDateTime() else (dateText.parseDateTime() ?: state.recordedAt).inputDate()
+                    onTime(enabled); (if (enabled) dateText.parseDateTime() else dateText.parseInputDate())?.let(onDate)
+                }, enabled = !state.saving)
                 FormField(state.note, onNote, "Note (optional)", singleLine = false, enabled = !state.saving)
             }
             state.error?.let { InlineMessage(it, error = true) }
-            PrimaryAction("Save Changes", onSave, icon = AppIcon.Check, enabled = dateText.parseDateTime() != null, busy = state.saving)
+            PrimaryAction("Save Changes", onSave, icon = AppIcon.Check, enabled = (if (state.hasTime) dateText.parseDateTime() else dateText.parseInputDate()) != null, busy = state.saving)
             SectionCard {
                 ActionRow("Delete Reading", "Permanently remove this entry.", AppIcon.Trash,
                     onClick = { if (state.confirmDeletion) confirmDelete = true else onDelete() }, enabled = !state.saving, destructive = true)
@@ -198,19 +207,20 @@ fun EditReadingContent(state: EditReadingUiState, onBack: () -> Unit = {}, onVal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReadingDateTimeField(value: String, onValue: (String) -> Unit, enabled: Boolean) {
+private fun ReadingDateTimeField(value: String, onValue: (String) -> Unit, hasTime: Boolean, onTime: (Boolean) -> Unit, enabled: Boolean) {
     val context = LocalContext.current
-    val valid = value.parseDateTime() != null
+    val valid = (if (hasTime) value.parseDateTime() else value.parseInputDate()) != null
     var showDate by remember { mutableStateOf(false) }
     var showTime by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(java.time.LocalDate.now()) }
-    val current = (value.parseDateTime() ?: Instant.now()).atZone(ZoneId.systemDefault())
+    val current = ((if (hasTime) value.parseDateTime() else value.parseInputDate()) ?: Instant.now()).atZone(ZoneId.systemDefault())
     if (showDate) {
         val picker = rememberDatePickerState(initialSelectedDateMillis = current.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
         DatePickerDialog(onDismissRequest = { showDate = false }, confirmButton = {
             TextButton(enabled = picker.selectedDateMillis != null, onClick = {
                 selectedDate = Instant.ofEpochMilli(checkNotNull(picker.selectedDateMillis)).atZone(ZoneOffset.UTC).toLocalDate()
-                showDate = false; showTime = true
+                showDate = false
+                if (hasTime) showTime = true else onValue(selectedDate.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().inputDate())
             }) { Text("Next") }
         }, dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } }) { DatePicker(picker) }
     }
@@ -223,9 +233,13 @@ private fun ReadingDateTimeField(value: String, onValue: (String) -> Unit, enabl
                 showTime = false
             }) { Text("Apply") } }, dismissButton = { TextButton(onClick = { showTime = false }) { Text("Cancel") } })
     }
-    OutlinedTextField(value, onValue, modifier = Modifier.fillMaxWidth(), label = { Text("Date and time") },
-        supportingText = { Text(if (valid) "yyyy-MM-dd HH:mm" else "Enter a valid date and time: yyyy-MM-dd HH:mm") },
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Include time", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(hasTime, onCheckedChange = onTime, enabled = enabled)
+    }
+    OutlinedTextField(value, onValue, modifier = Modifier.fillMaxWidth(), label = { Text(if (hasTime) "Date and time" else "Date") },
+        supportingText = { Text(if (hasTime) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd") },
         isError = !valid, enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.medium,
         colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant),
-        trailingIcon = { IconButton(enabled = enabled, onClick = { showDate = true }) { TripIcon(AppIcon.History, "Choose date and time") } })
+        trailingIcon = { IconButton(enabled = enabled, onClick = { showDate = true }) { TripIcon(AppIcon.History, "Choose date") } })
 }

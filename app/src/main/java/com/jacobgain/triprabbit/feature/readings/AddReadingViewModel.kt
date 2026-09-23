@@ -15,7 +15,7 @@ import javax.inject.Inject
 
 data class AddReadingUiState(
     val vehicle: Vehicle? = null, val previous: OdometerReading? = null, val value: String = "",
-    val recordedAt: Instant = Instant.now(), val note: String = "", val saving: Boolean = false, val error: String? = null,
+    val recordedAt: Instant = java.time.LocalDate.now().atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant(), val note: String = "", val name: String = "", val hasTime: Boolean = false, val saving: Boolean = false, val error: String? = null,
 )
 sealed interface ReadingEffect { data class Saved(val message: String) : ReadingEffect }
 
@@ -31,12 +31,14 @@ class AddReadingViewModel @Inject constructor(
     private val _effects = Channel<ReadingEffect>(Channel.BUFFERED); val effects = _effects.receiveAsFlow()
     fun valueChanged(value: String) { form.update { it.copy(value=value.filter(Char::isDigit), error=null) } }
     fun noteChanged(value: String) { form.update { it.copy(note=value) } }
+    fun nameChanged(value: String) { form.update { it.copy(name=value) } }
+    fun timeChanged(value: Boolean) { form.update { it.copy(hasTime=value) } }
     fun dateChanged(value: Instant) { form.update { it.copy(recordedAt=value, error=null) } }
     fun save() = viewModelScope.launch {
         val s = form.value; val value = s.value.toLongOrNull()
         if (value == null) { form.update { it.copy(error="Enter a valid odometer reading.") }; return@launch }
         form.update { it.copy(saving=true) }
-        runCatching { addReading(vehicleId, value, s.recordedAt, s.note) }
+        runCatching { addReading(vehicleId, value, s.recordedAt, s.note, s.name, s.hasTime) }
             .onSuccess { _effects.send(ReadingEffect.Saved("Reading added")) }
             .onFailure { e -> form.update { it.copy(saving=false, error=e.message ?: "Couldn't save the reading. Try again.") } }
     }
