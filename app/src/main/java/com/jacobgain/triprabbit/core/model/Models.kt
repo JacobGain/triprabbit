@@ -37,7 +37,7 @@ data class AppSettings(
     val firstLaunchComplete: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentTheme: AccentTheme = AccentTheme.DEFAULT,
-    val useDynamicColor: Boolean = true,
+    val useDynamicColor: Boolean = false,
     val useAmoledBlack: Boolean = false,
     val displayDensity: DisplayDensity = DisplayDensity.COMFORTABLE,
     val showVehicleDetails: Boolean = true,

@@ -27,6 +27,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 import com.jacobgain.triprabbit.BuildConfig
+import com.jacobgain.triprabbit.core.designsystem.component.*
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 
 data class SettingsUiState(val settings:AppSettings=AppSettings(),val selectedVehicle:Vehicle?=null,val importSummary:BackupSummary?=null,val busy:Boolean=false,val error:String?=null)
 sealed interface SettingsEffect{data class Message(val value:String):SettingsEffect}
@@ -54,32 +58,91 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     LaunchedEffect(Unit){viewModel.effects.collect{if(it is SettingsEffect.Message)onMessage(it.value)}}
     state.importSummary?.let{s->AlertDialog(onDismissRequest=viewModel::dismissImport,title={Text("Restore backup?")},text={Text("${s.vehicleCount} vehicles and ${s.readingCount} readings\nExported ${s.exportedAt.displayDate()}\n\nThis replaces all current TripRabbit data.")},confirmButton={TextButton(onClick=viewModel::restore){Text("Restore")}},dismissButton={TextButton(onClick=viewModel::dismissImport){Text("Cancel")}})}
     state.error?.let{AlertDialog(onDismissRequest=viewModel::clearError,title={Text("Couldn't complete operation")},text={Text(it)},confirmButton={TextButton(onClick=viewModel::clearError){Text("OK")}})}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-        item{Text("Settings",style=MaterialTheme.typography.headlineMedium)}
-        item{Section("Appearance")}
-        item{Text("Theme",style=MaterialTheme.typography.titleMedium);SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()){ThemeMode.entries.forEachIndexed{index,v->SegmentedButton(selected=state.settings.themeMode==v,onClick={viewModel.theme(v)},shape=SegmentedButtonDefaults.itemShape(index,ThemeMode.entries.size)){Text(v.name.lowercase().replaceFirstChar(Char::uppercase))}}}}
-        item{SettingSwitch("Use system colours",state.settings.useDynamicColor,viewModel::dynamic)}
-        item{SettingSwitch("Pure black in dark mode",state.settings.useAmoledBlack,viewModel::amoled)}
-        item{Text("Accent",style=MaterialTheme.typography.titleMedium);FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){AccentTheme.entries.forEach{v->FilterChip(selected=state.settings.accentTheme==v,onClick={viewModel.accent(v)},enabled=!state.settings.useDynamicColor,label={Text(v.name.lowercase().replaceFirstChar(Char::uppercase))})}}}
-        item{Text("Layout density",style=MaterialTheme.typography.titleMedium);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){DisplayDensity.entries.forEach{v->FilterChip(selected=state.settings.displayDensity==v,onClick={viewModel.density(v)},label={Text(v.name.lowercase().replaceFirstChar(Char::uppercase))})}}}
-        item{Section("Behaviour")};item{SettingSwitch("Confirm before deleting readings",state.settings.confirmReadingDeletion,viewModel::confirmDelete)}
-        item{Section("Data")}
-        item{ListItem(headlineContent={Text("Export backup")},supportingContent={Text("Save all vehicles and readings as JSON")},modifier=Modifier.clickable{json.launch("triprabbit-backup.json")})}
-        item{ListItem(headlineContent={Text("Restore backup")},supportingContent={Text("Replace local data from TripRabbit JSON")},modifier=Modifier.clickable{open.launch(arrayOf("application/json","text/plain"))})}
-        item{ListItem(headlineContent={Text("Export current vehicle CSV")},supportingContent={Text(state.selectedVehicle?.name?:"No vehicle selected")},modifier=Modifier.clickable(enabled=state.selectedVehicle!=null){csv.launch("${state.selectedVehicle?.name?:"vehicle"}-odometer.csv")})}
-        item{Section("About")}
-        item{ListItem(headlineContent={Text("Privacy policy")},supportingContent={Text("How TripRabbit handles your data")},modifier=Modifier.clickable(onClick=onPrivacy))}
-        item{ListItem(headlineContent={Text("TripRabbit")},supportingContent={Text("Version ${BuildConfig.VERSION_NAME} · Your data stays on this device unless you export it.")})}
-        if(state.busy)item{LinearProgressIndicator(Modifier.fillMaxWidth())}
+    SettingsContent(state,SettingsActions(
+        theme={viewModel.theme(it)},accent={viewModel.accent(it)},dynamic={viewModel.dynamic(it)},amoled={viewModel.amoled(it)},
+        density={viewModel.density(it)},confirmDelete={viewModel.confirmDelete(it)},
+        export={json.launch("triprabbit-backup.json")},restore={open.launch(arrayOf("application/json","text/plain"))},
+        csv={csv.launch("${state.selectedVehicle?.name?:"vehicle"}-odometer.csv")},privacy=onPrivacy,
+    ))
+}
+
+data class SettingsActions(
+    val theme:(ThemeMode)->Unit={},val accent:(AccentTheme)->Unit={},val dynamic:(Boolean)->Unit={},
+    val amoled:(Boolean)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},
+    val export:()->Unit={},val restore:()->Unit={},val csv:()->Unit={},val privacy:()->Unit={},
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsActions()) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp,24.dp,20.dp,28.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
+        item { PageHeading("Make yourself at home.","A few preferences. A little more you.") }
+        item { SectionCard {
+            SectionTitle("Appearance","Choose what feels right.")
+            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                ThemeMode.entries.forEach { mode -> FilterChip(selected=state.settings.themeMode==mode,onClick={actions.theme(mode)},
+                    label={Text(mode.name.lowercase().replaceFirstChar(Char::uppercase))},shape=MaterialTheme.shapes.medium,
+                    leadingIcon=if(state.settings.themeMode==mode)({TripIcon(AppIcon.Check,modifier=Modifier.size(16.dp))})else null) }
+            }
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            PreferenceToggle("Use system colours","Match your device’s colour palette.",state.settings.useDynamicColor,actions.dynamic)
+            PreferenceToggle("Pure black in dark mode","A darker background for OLED displays.",state.settings.useAmoledBlack,actions.amoled)
+            if(!state.settings.useDynamicColor) {
+                Text("Accent colour",style=MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    AccentTheme.entries.forEach { accent -> FilterChip(selected=state.settings.accentTheme==accent,onClick={actions.accent(accent)},
+                        label={Text(if(accent==AccentTheme.DEFAULT)"Evergreen" else accent.name.lowercase().replaceFirstChar(Char::uppercase))},
+                        shape=MaterialTheme.shapes.medium,leadingIcon=if(state.settings.accentTheme==accent)({TripIcon(AppIcon.Check,modifier=Modifier.size(16.dp))})else null) }
+                }
+            }
+        } }
+        item { SectionCard {
+            SectionTitle("Your experience")
+            Text("Garage layout",style=MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                DisplayDensity.entries.forEach { density -> FilterChip(selected=state.settings.displayDensity==density,onClick={actions.density(density)},
+                    label={Text(density.name.lowercase().replaceFirstChar(Char::uppercase))},shape=MaterialTheme.shapes.medium) }
+            }
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            PreferenceToggle("Confirm before deleting","Ask before removing an odometer reading.",state.settings.confirmReadingDeletion,actions.confirmDelete)
+        } }
+        item { SectionCard {
+            SectionTitle("Your data","Stored here. Exported only when you choose.")
+            ActionRow("Export backup","All vehicles and readings, as JSON.",AppIcon.Download,actions.export,enabled=!state.busy)
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            ActionRow("Restore backup","Replace local records from a backup.",AppIcon.Upload,actions.restore,enabled=!state.busy)
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            ActionRow("Export current vehicle CSV",state.selectedVehicle?.name?:"Select a vehicle from Home.",AppIcon.Reports,actions.csv,enabled=!state.busy&&state.selectedVehicle!=null)
+            if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
+        } }
+        item { SectionCard {
+            SectionTitle("About")
+            BrandHeader()
+            Text("Miles for what matters.",style=MaterialTheme.typography.bodyLarge)
+            Text("Version ${BuildConfig.VERSION_NAME} · Made for a little less admin.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            ActionRow("Privacy policy","Your data stays yours.",AppIcon.Shield,actions.privacy)
+        } }
+    }
+}
+
+@Composable
+private fun PreferenceToggle(title:String,subtitle:String,checked:Boolean,onChecked:(Boolean)->Unit) {
+    Row(Modifier.fillMaxWidth().toggleable(checked,role=Role.Switch,onValueChange=onChecked).padding(vertical=6.dp),
+        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            Text(title,style=MaterialTheme.typography.titleSmall)
+            Text(subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked,onCheckedChange=null)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PrivacyPolicyScreen(onBack:()->Unit){
-    Scaffold(topBar={TopAppBar(title={Text("Privacy policy")},navigationIcon={IconButton(onClick=onBack){Icon(Icons.AutoMirrored.Filled.ArrowBack,"Back")}})}){padding->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            item{Text("TripRabbit privacy policy",style=MaterialTheme.typography.headlineMedium)}
-            item{Text("Effective September 22, 2026")}
+    Scaffold(topBar={DetailTopBar("Privacy policy",onBack)}){padding->
+        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)){
+            item{PageHeading("TripRabbit privacy policy","Effective September 22, 2026",action={IconBadge(AppIcon.Shield,accented=true)})}
             item{PolicySection("Summary","TripRabbit is a local odometer-history app. It has no account, advertising, analytics, network service, or automatic cloud backup. TripRabbit does not collect, transmit, sell, or share your data with the developer or third parties.")}
             item{PolicySection("Data you enter","TripRabbit accesses the vehicle names, odometer readings, dates, units, and optional notes that you enter. This data is used only on your device to provide the app’s tracking, history, backup, and statistics features.")}
             item{PolicySection("Storage and security","App data is stored in TripRabbit’s private Android app storage, which is protected by Android’s app sandbox. Android backup is disabled for TripRabbit. The app requests no dangerous permissions and has no Internet permission.")}
@@ -92,6 +155,4 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     }
 }
 
-@Composable private fun PolicySection(title:String,body:String){Column(verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,style=MaterialTheme.typography.titleMedium);Text(body)}}
-@Composable private fun Section(title:String){Text(title,style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=18.dp,bottom=4.dp))}
-@Composable private fun SettingSwitch(title:String,checked:Boolean,onChecked:(Boolean)->Unit){ListItem(headlineContent={Text(title)},trailingContent={Switch(checked,onCheckedChange=onChecked)},modifier=Modifier.clickable{onChecked(!checked)})}
+@Composable private fun PolicySection(title:String,body:String){SectionCard{SectionTitle(title);Text(body,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}}

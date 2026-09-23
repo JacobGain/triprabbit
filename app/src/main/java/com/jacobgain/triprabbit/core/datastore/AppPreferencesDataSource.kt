@@ -24,7 +24,7 @@ class AppPreferencesDataSource @Inject constructor(@ApplicationContext context: 
             firstLaunchComplete = values[FIRST_LAUNCH] ?: false,
             themeMode = values[THEME_MODE].enumOr(com.jacobgain.triprabbit.core.model.ThemeMode.SYSTEM),
             accentTheme = values[ACCENT_THEME].enumOr(com.jacobgain.triprabbit.core.model.AccentTheme.DEFAULT),
-            useDynamicColor = values[DYNAMIC_COLOR] ?: true,
+            useDynamicColor = values[DYNAMIC_COLOR] ?: false,
             useAmoledBlack = values[AMOLED] ?: false,
             displayDensity = values[DENSITY].enumOr(com.jacobgain.triprabbit.core.model.DisplayDensity.COMFORTABLE),
             showVehicleDetails = values[SHOW_DETAILS] ?: true,
