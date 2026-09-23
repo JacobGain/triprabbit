@@ -11,8 +11,8 @@ parties.
 
 ## Data you enter
 
-TripRabbit accesses the vehicle names, odometer readings, dates, units, and
-optional notes that you enter. This data is used only on your device to provide
+TripRabbit accesses the vehicle and trip names, odometer readings, dates, optional
+times, units, and notes that you enter. This data is used only on your device to provide
 the app's tracking, history, backup, and statistics features.
 
 ## Storage and security
@@ -23,7 +23,7 @@ requests no dangerous permissions and has no Internet permission.
 
 ## Exports and restores
 
-TripRabbit writes a JSON backup or CSV export only when you choose a destination
+TripRabbit writes a JSON backup, CSV, or PDF export only when you choose a destination
 through Android's system file picker. Exported files are not encrypted by
 TripRabbit and are then controlled by you and the storage provider you select.
 TripRabbit reads a backup only after you select it, validates it, asks for
@@ -51,4 +51,3 @@ declaration will be updated before the changed version is distributed.
 
 Privacy questions can be submitted using the developer contact details on
 TripRabbit's Google Play store listing.
-

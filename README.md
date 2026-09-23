@@ -6,12 +6,12 @@ A simple, private odometer history app for Android.
 
 - Create, edit, archive, delete, and switch between vehicles
 - Store independent odometer histories for multiple vehicles
-- Add, edit, and delete timestamped readings with chronological validation
+- Add, edit, and delete dated readings with optional trip names, notes, and times
 - Persist vehicles and readings with Room and the current selection with DataStore
 - Dashboard mileage summaries, recent activity, and a history chart
 - Detailed tracked, 30-day, annual, and monthly statistics
-- System/light/dark appearance modes and garage density controls
-- JSON backup/restore and per-vehicle CSV export through system file pickers
+- System/light/dark appearance modes, custom RGB accent colour, and garage density controls
+- JSON backup/restore and date-range CSV/PDF mileage reports through system file pickers
 
 ## Tech
 
@@ -21,7 +21,7 @@ TripRabbit is fully local and requests no dangerous Android permissions.
 
 ## UI
 
-The Compose UI uses an evergreen and warm-neutral design system, custom rabbit
+The Compose UI uses a customizable colour palette, custom rabbit
 artwork, and a consistent outline control icon family. Onboarding, dashboard,
 history, reports, forms, vehicles, settings, and privacy share typography,
 surfaces, controls, and light/dark palettes. Home /
@@ -29,8 +29,8 @@ History / Reports / Settings navigation keeps the main destinations close.
 
 Vehicle management is available from Home and the vehicle selector. History
 supports search and All Readings / This Month / With Notes filters; Reports
-includes CSV export. Reading forms include date/time pickers. The branded palette
-is used in both appearance modes. The installed PNG artwork is documented in
+includes date-range CSV and PDF export. Reading forms use dates by default, with optional times.
+The selected accent colour is used in both appearance modes. The installed PNG artwork is documented in
 [UI assets](docs/ui-assets.md).
 
 The mockup's GPS trip tracking, business/personal classification, and tax

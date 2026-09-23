@@ -18,7 +18,7 @@ change.
 - Its release is digitally signed as required by Android/Google Play. Platform
   security, Android's app sandbox, and store signing are not user-facing
   encryption functionality supplied by TripRabbit.
-- JSON and CSV exports are not encrypted by TripRabbit.
+- JSON, CSV, and PDF exports are not encrypted by TripRabbit.
 
 ## Preliminary conclusion
 
@@ -71,4 +71,3 @@ every pre-publication classification/reporting step for mass-market encryption.
 - BIS Encryption FAQs: https://www.bis.gov/media/documents/encryption-faqs
 - EAR Commerce Control List, Category 5 Part 2: https://www.ecfr.gov/current/title-15/subtitle-B/chapter-VII/subchapter-C/part-774/appendix-Supplement%20No.%201%20to%20Part%20774
 - OFAC sanctions programs and country information: https://ofac.treasury.gov/sanctions-programs-and-country-information
-

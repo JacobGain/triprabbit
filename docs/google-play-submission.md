@@ -22,14 +22,13 @@ actual release artifact, not merely this document.
 
 > Keep a clear odometer history for each of your vehicles with TripRabbit.
 >
-> Add timestamped readings, review recent activity, and see tracked, monthly,
+> Add dated readings with optional trip names and notes, review recent activity, and see tracked, monthly,
 > annual, and 30-day mileage statistics. Manage multiple vehicles independently
 > and choose the theme and layout that suit you.
 >
 > Your data stays on your device. TripRabbit has no account, ads, analytics, or
 > network service. You can create a JSON backup, restore a TripRabbit backup, or
-> export the current vehicle's history as CSV using Android's system file
-> picker.
+> export a selected date range as CSV or PDF using Android's system file picker.
 
 Use screenshots captured from the submitted build. Do not add rankings,
 awards, pricing claims, testimonials, unrelated keywords, or capabilities not
@@ -69,7 +68,7 @@ field:
 
 > No login or special access is required. On first launch, tap Add Vehicle,
 > enter a name and starting odometer reading, and save. All tabs and features
-> then become available. Backup and CSV export use Android's system file picker.
+> then become available. Backup, CSV, and PDF export use Android's system file picker.
 
 ## Release gates
 
