@@ -32,9 +32,6 @@ interface SettingsRepository {
     suspend fun setSelectedVehicle(id: Long?)
     suspend fun setFirstLaunchComplete(complete: Boolean)
     suspend fun setThemeMode(value: ThemeMode)
-    suspend fun setAccentTheme(value: AccentTheme)
-    suspend fun setDynamicColor(value: Boolean)
-    suspend fun setAmoledBlack(value: Boolean)
     suspend fun setDisplayDensity(value: DisplayDensity)
     suspend fun setConfirmReadingDeletion(value: Boolean)
 }

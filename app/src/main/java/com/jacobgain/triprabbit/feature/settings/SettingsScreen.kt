@@ -30,7 +30,10 @@ import com.jacobgain.triprabbit.BuildConfig
 import com.jacobgain.triprabbit.core.designsystem.component.*
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalDensity
 
 data class SettingsUiState(val settings:AppSettings=AppSettings(),val selectedVehicle:Vehicle?=null,val importSummary:BackupSummary?=null,val busy:Boolean=false,val error:String?=null)
 sealed interface SettingsEffect{data class Message(val value:String):SettingsEffect}
@@ -38,7 +41,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     private val local=MutableStateFlow(SettingsUiState());private var importUri:Uri?=null
     val uiState=combine(settingsRepository.observeSettings(),vehicles.observeActiveVehicles(),local){settings,all,state->state.copy(settings=settings,selectedVehicle=all.firstOrNull{it.id==settings.selectedVehicleId})}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5_000),SettingsUiState())
     private val _effects=Channel<SettingsEffect>(Channel.BUFFERED);val effects=_effects.receiveAsFlow()
-    fun theme(v:ThemeMode)=launch{settingsRepository.setThemeMode(v)};fun accent(v:AccentTheme)=launch{settingsRepository.setAccentTheme(v)};fun dynamic(v:Boolean)=launch{settingsRepository.setDynamicColor(v)};fun amoled(v:Boolean)=launch{settingsRepository.setAmoledBlack(v)};fun density(v:DisplayDensity)=launch{settingsRepository.setDisplayDensity(v)};fun confirmDelete(v:Boolean)=launch{settingsRepository.setConfirmReadingDeletion(v)}
+    fun theme(v:ThemeMode)=launch{settingsRepository.setThemeMode(v)};fun density(v:DisplayDensity)=launch{settingsRepository.setDisplayDensity(v)};fun confirmDelete(v:Boolean)=launch{settingsRepository.setConfirmReadingDeletion(v)}
     fun export(uri:Uri)=work("Backup exported"){data.exportBackup(uri)};fun csv(uri:Uri){val id=uiState.value.selectedVehicle?.id?:return;work("CSV exported"){data.exportVehicleCsv(uri,id)}}
     fun inspect(uri:Uri){viewModelScope.launch{local.update{it.copy(busy=true,error=null)};runCatching{withContext(Dispatchers.IO){data.inspectBackup(uri)}}.onSuccess{summary->importUri=uri;local.update{it.copy(busy=false,importSummary=summary)}}.onFailure(::failure)}}
     fun dismissImport(){importUri=null;local.update{it.copy(importSummary=null)}}
@@ -59,7 +62,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     state.importSummary?.let{s->AlertDialog(onDismissRequest=viewModel::dismissImport,title={Text("Restore backup?")},text={Text("${s.vehicleCount} vehicles and ${s.readingCount} readings\nExported ${s.exportedAt.displayDate()}\n\nThis replaces all current TripRabbit data.")},confirmButton={TextButton(onClick=viewModel::restore){Text("Restore")}},dismissButton={TextButton(onClick=viewModel::dismissImport){Text("Cancel")}})}
     state.error?.let{AlertDialog(onDismissRequest=viewModel::clearError,title={Text("Couldn't complete operation")},text={Text(it)},confirmButton={TextButton(onClick=viewModel::clearError){Text("OK")}})}
     SettingsContent(state,SettingsActions(
-        theme={viewModel.theme(it)},accent={viewModel.accent(it)},dynamic={viewModel.dynamic(it)},amoled={viewModel.amoled(it)},
+        theme={viewModel.theme(it)},
         density={viewModel.density(it)},confirmDelete={viewModel.confirmDelete(it)},
         export={json.launch("triprabbit-backup.json")},restore={open.launch(arrayOf("application/json","text/plain"))},
         csv={csv.launch("${state.selectedVehicle?.name?:"vehicle"}-odometer.csv")},privacy=onPrivacy,
@@ -67,8 +70,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
 }
 
 data class SettingsActions(
-    val theme:(ThemeMode)->Unit={},val accent:(AccentTheme)->Unit={},val dynamic:(Boolean)->Unit={},
-    val amoled:(Boolean)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},
+    val theme:(ThemeMode)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},
     val export:()->Unit={},val restore:()->Unit={},val csv:()->Unit={},val privacy:()->Unit={},
 )
 
@@ -78,31 +80,21 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp,24.dp,20.dp,28.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item { PageHeading("Make yourself at home.","A few preferences. A little more you.") }
         item { SectionCard {
-            SectionTitle("Appearance","Choose what feels right.")
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                ThemeMode.entries.forEach { mode -> FilterChip(selected=state.settings.themeMode==mode,onClick={actions.theme(mode)},
-                    label={Text(mode.name.lowercase().replaceFirstChar(Char::uppercase))},shape=MaterialTheme.shapes.medium,
-                    leadingIcon=if(state.settings.themeMode==mode)({TripIcon(AppIcon.Check,modifier=Modifier.size(16.dp))})else null) }
-            }
-            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-            PreferenceToggle("Use system colours","Match your device’s colour palette.",state.settings.useDynamicColor,actions.dynamic)
-            PreferenceToggle("Pure black in dark mode","A darker background for OLED displays.",state.settings.useAmoledBlack,actions.amoled)
-            if(!state.settings.useDynamicColor) {
-                Text("Accent colour",style=MaterialTheme.typography.titleSmall)
-                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    AccentTheme.entries.forEach { accent -> FilterChip(selected=state.settings.accentTheme==accent,onClick={actions.accent(accent)},
-                        label={Text(if(accent==AccentTheme.DEFAULT)"Evergreen" else accent.name.lowercase().replaceFirstChar(Char::uppercase))},
-                        shape=MaterialTheme.shapes.medium,leadingIcon=if(state.settings.accentTheme==accent)({TripIcon(AppIcon.Check,modifier=Modifier.size(16.dp))})else null) }
-                }
-            }
+            SectionTitle("Appearance","Choose when to use the light or dark palette.")
+            ChoiceRow("System", "Follow your device setting", AppIcon.Device,
+                state.settings.themeMode==ThemeMode.SYSTEM) { actions.theme(ThemeMode.SYSTEM) }
+            ChoiceRow("Light", "Warm, bright surfaces", AppIcon.Sun,
+                state.settings.themeMode==ThemeMode.LIGHT) { actions.theme(ThemeMode.LIGHT) }
+            ChoiceRow("Dark", "Quiet, low-glare surfaces", AppIcon.Moon,
+                state.settings.themeMode==ThemeMode.DARK) { actions.theme(ThemeMode.DARK) }
         } }
         item { SectionCard {
             SectionTitle("Your experience")
             Text("Garage layout",style=MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                DisplayDensity.entries.forEach { density -> FilterChip(selected=state.settings.displayDensity==density,onClick={actions.density(density)},
-                    label={Text(density.name.lowercase().replaceFirstChar(Char::uppercase))},shape=MaterialTheme.shapes.medium) }
-            }
+            ChoiceRow("Comfortable", "More room for each vehicle", AppIcon.Car,
+                state.settings.displayDensity==DisplayDensity.COMFORTABLE) { actions.density(DisplayDensity.COMFORTABLE) }
+            ChoiceRow("Compact", "See more vehicles at once", AppIcon.Reports,
+                state.settings.displayDensity==DisplayDensity.COMPACT) { actions.density(DisplayDensity.COMPACT) }
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             PreferenceToggle("Confirm before deleting","Ask before removing an odometer reading.",state.settings.confirmReadingDeletion,actions.confirmDelete)
         } }
@@ -123,6 +115,40 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             ActionRow("Privacy policy","Your data stays yours.",AppIcon.Shield,actions.privacy)
         } }
+    }
+}
+
+@Composable
+private fun ChoiceRow(title: String, subtitle: String, icon: AppIcon, selected: Boolean, onClick: () -> Unit) {
+    val largeText = LocalDensity.current.fontScale > 1.4f
+    Surface(
+        modifier = Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = .35f)) else null,
+    ) {
+        if (largeText) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(icon, accented = selected)
+                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    if (selected) TripIcon(AppIcon.Check, "Selected", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconBadge(icon, accented = selected)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (selected) TripIcon(AppIcon.Check, "Selected", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
     }
 }
 

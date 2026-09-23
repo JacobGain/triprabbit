@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import com.jacobgain.triprabbit.core.designsystem.theme.TripRabbitTheme
 import com.jacobgain.triprabbit.core.designsystem.component.*
@@ -33,7 +32,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private object Routes {
-    const val Gate="gate";const val Welcome="welcome";const val Home="home";const val HistoryMain="history";const val Vehicles="vehicles";const val Settings="settings";const val Privacy="privacy"
+    const val Gate="gate";const val Home="home";const val HistoryMain="history";const val Vehicles="vehicles";const val Settings="settings";const val Privacy="privacy"
     const val AddVehicle="vehicle/add";const val Vehicle="vehicle/{vehicleId}";const val EditVehicle="vehicle/{vehicleId}/edit"
     const val AddReading="add-reading/{vehicleId}";const val History="history/{vehicleId}";const val EditReading="reading/{readingId}/edit"
     const val Statistics="statistics/{vehicleId}"; const val Reports="reports"
@@ -54,13 +53,14 @@ fun TripRabbitApp(viewModel: AppViewModel = hiltViewModel()) {
                     else -> LaunchedEffect(Unit){nav.navigate(Routes.Home){popUpTo(Routes.Gate){inclusive=true}}}
                 }
             }
-            composable(Routes.Welcome){WelcomeScreen{nav.navigate(Routes.AddVehicle)}}
-            composable(Routes.AddVehicle){VehicleEditorScreen(onSaved={nav.navigate(Routes.Home){popUpTo(Routes.Gate){inclusive=true}}},onBack={nav.popBackStack()})}
-            composable(Routes.Home){MainShell("home",nav,app){DashboardScreen(onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate(Routes.HistoryMain)},onManageVehicles={nav.navigate(Routes.Vehicles)},onStatistics={nav.navigate("statistics/$it")})}}
-            composable(Routes.HistoryMain){MainShell("history",nav,app){val id=app.selectedVehicleId;if(id==null)com.jacobgain.triprabbit.core.designsystem.component.EmptyState("No vehicle selected","Choose a vehicle to view its history.","Vehicles"){nav.navigate(Routes.Vehicles)}else ReadingHistoryScreen(onBack=null,onAdd={nav.navigate("add-reading/$it")},onEdit={nav.navigate("reading/$it/edit")})}}
-            composable(Routes.Vehicles){MainShell("home",nav,app){VehicleListScreen(app.vehicles,app.selectedVehicleId,app.latestReadings.mapValues{it.value.value},app.settings.displayDensity,viewModel::selectVehicle,{nav.navigate("vehicle/$it")},{nav.navigate(Routes.AddVehicle)},onBack={nav.popBackStack()})}}
-            composable(Routes.Settings){MainShell("settings",nav,app){SettingsScreen(onMessage={message->scope.launch{snackbar.showSnackbar(message)}},onPrivacy={nav.navigate(Routes.Privacy)})}}
-            composable(Routes.Reports){MainShell("reports",nav,app){StatisticsScreen(onBack=null)}}
+            composable(Routes.AddVehicle){VehicleEditorScreen(onSaved={
+                if (!nav.popBackStack(Routes.Home, false)) nav.navigate(Routes.Home){popUpTo(Routes.Gate){inclusive=true};launchSingleTop=true}
+            },onBack={nav.popBackStack()})}
+            composable(Routes.Home){MainShell("home",nav){DashboardScreen(onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate(Routes.HistoryMain)},onManageVehicles={nav.navigate(Routes.Vehicles)},onStatistics={nav.navigate("statistics/$it")})}}
+            composable(Routes.HistoryMain){MainShell("history",nav){val id=app.selectedVehicleId;if(id==null)EmptyState("No vehicle selected","Choose a vehicle to view its history.","Vehicles"){nav.navigate(Routes.Vehicles)}else ReadingHistoryScreen(onBack=null,onAdd={nav.navigate("add-reading/$it")},onEdit={nav.navigate("reading/$it/edit")})}}
+            composable(Routes.Vehicles){MainShell("home",nav){VehicleListScreen(app.vehicles,app.selectedVehicleId,app.latestReadings.mapValues{it.value.value},app.settings.displayDensity,viewModel::selectVehicle,{nav.navigate("vehicle/$it")},{nav.navigate(Routes.AddVehicle)},onBack={nav.popBackStack()})}}
+            composable(Routes.Settings){MainShell("settings",nav){SettingsScreen(onMessage={message->scope.launch{snackbar.showSnackbar(message)}},onPrivacy={nav.navigate(Routes.Privacy)})}}
+            composable(Routes.Reports){MainShell("reports",nav){StatisticsScreen(onBack=null,onManageVehicles={nav.navigate(Routes.Vehicles)})}}
             composable(Routes.Privacy){PrivacyPolicyScreen(onBack={nav.popBackStack()})}
             composable(Routes.Vehicle){VehicleDetailsScreen(onBack={nav.popBackStack()},onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate("history/$it")},onEdit={nav.navigate("vehicle/$it/edit")},onGone={nav.navigate(Routes.Vehicles){popUpTo(Routes.Home)}})}
             composable(Routes.EditVehicle){VehicleEditorScreen(onSaved={nav.popBackStack()},onBack={nav.popBackStack()})}
@@ -73,10 +73,9 @@ fun TripRabbitApp(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun MainShell(current:String,nav:androidx.navigation.NavHostController,app:AppUiState,content:@Composable () -> Unit){
+private fun MainShell(current:String,nav:androidx.navigation.NavHostController,content:@Composable () -> Unit){
     Scaffold(bottomBar={AppNavigation(current){route->
-        val target=if((route=="history"||route=="reports")&&app.selectedVehicleId==null) Routes.Vehicles else route
-        nav.navigate(target){popUpTo(Routes.Home){saveState=true};launchSingleTop=true;restoreState=true}
+        nav.navigate(route){popUpTo(Routes.Home);launchSingleTop=true}
     }}){padding->Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),contentAlignment=Alignment.TopCenter){
         Box(Modifier.widthIn(max=720.dp).fillMaxSize()){content()}
     }}

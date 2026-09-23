@@ -29,16 +29,12 @@ data class OdometerReading(
 )
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
-enum class AccentTheme { DEFAULT, BLUE, GREEN, ORANGE, RED, PURPLE, MONOCHROME }
 enum class DisplayDensity { COMFORTABLE, COMPACT }
 
 data class AppSettings(
     val selectedVehicleId: Long? = null,
     val firstLaunchComplete: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accentTheme: AccentTheme = AccentTheme.DEFAULT,
-    val useDynamicColor: Boolean = false,
-    val useAmoledBlack: Boolean = false,
     val displayDensity: DisplayDensity = DisplayDensity.COMFORTABLE,
     val showVehicleDetails: Boolean = true,
     val confirmReadingDeletion: Boolean = true,

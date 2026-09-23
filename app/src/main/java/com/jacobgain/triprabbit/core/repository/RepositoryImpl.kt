@@ -45,9 +45,6 @@ class SettingsRepositoryImpl @Inject constructor(private val dataSource: AppPref
     override suspend fun setSelectedVehicle(id: Long?) = dataSource.setSelectedVehicle(id)
     override suspend fun setFirstLaunchComplete(complete: Boolean) = dataSource.setFirstLaunchComplete(complete)
     override suspend fun setThemeMode(value: ThemeMode) = dataSource.updateAppearance(themeMode = value)
-    override suspend fun setAccentTheme(value: AccentTheme) = dataSource.updateAppearance(accentTheme = value)
-    override suspend fun setDynamicColor(value: Boolean) = dataSource.updateAppearance(dynamicColor = value)
-    override suspend fun setAmoledBlack(value: Boolean) = dataSource.updateAppearance(amoled = value)
     override suspend fun setDisplayDensity(value: DisplayDensity) = dataSource.updateAppearance(density = value)
     override suspend fun setConfirmReadingDeletion(value: Boolean) = dataSource.setConfirmReadingDeletion(value)
 }

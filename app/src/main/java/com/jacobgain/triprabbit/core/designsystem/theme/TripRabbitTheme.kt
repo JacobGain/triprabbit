@@ -1,12 +1,10 @@
 package com.jacobgain.triprabbit.core.designsystem.theme
 
-import android.os.Build
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.Color
@@ -65,7 +63,6 @@ private val AppTypography = Typography(
 @Composable
 fun TripRabbitTheme(settings: AppSettings = AppSettings(), content: @Composable () -> Unit) {
     val dark = when (settings.themeMode) { ThemeMode.LIGHT -> false; ThemeMode.DARK -> true; ThemeMode.SYSTEM -> isSystemInDarkTheme() }
-    val context = LocalContext.current
     val view = LocalView.current
     if (!view.isInEditMode) SideEffect {
         (view.context as? Activity)?.window?.let { window ->
@@ -75,32 +72,9 @@ fun TripRabbitTheme(settings: AppSettings = AppSettings(), content: @Composable 
             }
         }
     }
-    var colors = if (settings.useDynamicColor && Build.VERSION.SDK_INT >= 31) {
-        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else palette(settings.accentTheme, dark)
-    if (dark && settings.useAmoledBlack) colors = colors.copy(background = Color.Black, surface = Color.Black)
+    val colors = if (dark) DarkColors else LightColors
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = Shapes(
         small = RoundedCornerShape(10.dp), medium = RoundedCornerShape(16.dp),
         large = RoundedCornerShape(24.dp), extraLarge = RoundedCornerShape(32.dp),
     ), content = content)
-}
-
-private fun palette(accent: AccentTheme, dark: Boolean): ColorScheme {
-    val base = if (dark) DarkColors else LightColors
-    val (primary, container, onContainer) = when (accent) {
-        AccentTheme.DEFAULT -> return base
-        AccentTheme.BLUE -> if (dark) Triple(Color(0xFFA9C7FF), Color(0xFF273F62), Color(0xFFD8E7FF))
-            else Triple(Color(0xFF315DA8), Color(0xFFDDE8FA), Color(0xFF173A6B))
-        AccentTheme.GREEN -> if (dark) Triple(Color(0xFF9CD49E), Color(0xFF2A4930), Color(0xFFD3F0D0))
-            else Triple(Color(0xFF386A3A), Color(0xFFE2F0DE), Color(0xFF284E2A))
-        AccentTheme.ORANGE -> if (dark) Triple(Color(0xFFFFB77A), Color(0xFF5A3B1C), Color(0xFFFFE1C4))
-            else Triple(Color(0xFF8A4F00), Color(0xFFFFE8C7), Color(0xFF603600))
-        AccentTheme.RED -> if (dark) Triple(Color(0xFFFFB4AB), Color(0xFF5B302D), Color(0xFFFFDAD5))
-            else Triple(Color(0xFF9C423B), Color(0xFFF8DFDB), Color(0xFF6D302A))
-        AccentTheme.PURPLE -> if (dark) Triple(Color(0xFFD4BBFF), Color(0xFF443059), Color(0xFFEBDDFF))
-            else Triple(Color(0xFF675085), Color(0xFFEBE2F7), Color(0xFF48335F))
-        AccentTheme.MONOCHROME -> if (dark) Triple(Color.White, Color(0xFF343434), Color.White)
-            else Triple(Color(0xFF333333), Color(0xFFE5E5E5), Color(0xFF242424))
-    }
-    return base.copy(primary = primary, primaryContainer = container, onPrimaryContainer = onContainer, surfaceTint = primary)
 }

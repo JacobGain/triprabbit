@@ -23,9 +23,6 @@ class AppPreferencesDataSource @Inject constructor(@ApplicationContext context: 
             selectedVehicleId = values[SELECTED_VEHICLE],
             firstLaunchComplete = values[FIRST_LAUNCH] ?: false,
             themeMode = values[THEME_MODE].enumOr(com.jacobgain.triprabbit.core.model.ThemeMode.SYSTEM),
-            accentTheme = values[ACCENT_THEME].enumOr(com.jacobgain.triprabbit.core.model.AccentTheme.DEFAULT),
-            useDynamicColor = values[DYNAMIC_COLOR] ?: false,
-            useAmoledBlack = values[AMOLED] ?: false,
             displayDensity = values[DENSITY].enumOr(com.jacobgain.triprabbit.core.model.DisplayDensity.COMFORTABLE),
             showVehicleDetails = values[SHOW_DETAILS] ?: true,
             confirmReadingDeletion = values[CONFIRM_READING_DELETE] ?: true,
@@ -39,15 +36,9 @@ class AppPreferencesDataSource @Inject constructor(@ApplicationContext context: 
     suspend fun setFirstLaunchComplete(complete: Boolean) { store.edit { it[FIRST_LAUNCH] = complete } }
     suspend fun updateAppearance(
         themeMode: com.jacobgain.triprabbit.core.model.ThemeMode? = null,
-        accentTheme: com.jacobgain.triprabbit.core.model.AccentTheme? = null,
-        dynamicColor: Boolean? = null,
-        amoled: Boolean? = null,
         density: com.jacobgain.triprabbit.core.model.DisplayDensity? = null,
     ) { store.edit { values ->
         themeMode?.let { values[THEME_MODE] = it.name }
-        accentTheme?.let { values[ACCENT_THEME] = it.name }
-        dynamicColor?.let { values[DYNAMIC_COLOR] = it }
-        amoled?.let { values[AMOLED] = it }
         density?.let { values[DENSITY] = it.name }
     } }
     suspend fun setConfirmReadingDeletion(enabled: Boolean) { store.edit { it[CONFIRM_READING_DELETE] = enabled } }
@@ -56,9 +47,6 @@ class AppPreferencesDataSource @Inject constructor(@ApplicationContext context: 
         val SELECTED_VEHICLE = longPreferencesKey("selected_vehicle_id")
         val FIRST_LAUNCH = booleanPreferencesKey("first_launch_complete")
         val THEME_MODE = stringPreferencesKey("theme_mode")
-        val ACCENT_THEME = stringPreferencesKey("accent_theme")
-        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
-        val AMOLED = booleanPreferencesKey("amoled_black")
         val DENSITY = stringPreferencesKey("display_density")
         val SHOW_DETAILS = booleanPreferencesKey("show_vehicle_details")
         val CONFIRM_READING_DELETE = booleanPreferencesKey("confirm_reading_deletion")

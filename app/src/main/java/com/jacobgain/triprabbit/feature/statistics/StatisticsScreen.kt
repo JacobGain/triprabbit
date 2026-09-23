@@ -69,7 +69,7 @@ class StatisticsViewModel @Inject constructor(saved: SavedStateHandle, vehicles:
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatisticsScreen(onBack: (() -> Unit)?, viewModel: StatisticsViewModel = hiltViewModel()) {
+fun StatisticsScreen(onBack: (() -> Unit)?, onManageVehicles: () -> Unit = {}, viewModel: StatisticsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val vehicle = state.vehicle
     val snackbar = remember { SnackbarHostState() }
@@ -80,29 +80,33 @@ fun StatisticsScreen(onBack: (() -> Unit)?, viewModel: StatisticsViewModel = hil
         exportVehicleId = null
     }
     LaunchedEffect(viewModel) { viewModel.effects.collect { snackbar.showSnackbar(it) } }
-    StatisticsContent(state, onBack, viewModel.exporting, snackbar) {
-        vehicle?.let { exportVehicleId = it.id; export.launch("${it.name}-odometer.csv") }
-    }
+    StatisticsContent(state, onBack, viewModel.exporting, snackbar,
+        onExport = { vehicle?.let { exportVehicleId = it.id; export.launch("${it.name}-odometer.csv") } },
+        onManageVehicles = onManageVehicles)
 }
 
 @Composable
 fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, exporting: Boolean = false,
-    snackbar: SnackbarHostState = remember { SnackbarHostState() }, onExport: () -> Unit = {}) {
+    snackbar: SnackbarHostState = remember { SnackbarHostState() }, onExport: () -> Unit = {},
+    onManageVehicles: () -> Unit = {}) {
     val vehicle = state.vehicle
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, topBar = { if (onBack != null) DetailTopBar("Reports", onBack) }) { padding ->
         if (state.loading) LoadingState(Modifier.padding(padding))
-        else if (vehicle == null) Box(Modifier.padding(padding)) { EmptyState("No vehicle selected", "Choose a vehicle from Home to see your mileage reports.") }
+        else if (vehicle == null) Box(Modifier.padding(padding)) { EmptyState("No vehicle selected", "Choose a vehicle to see its mileage reports.", "Vehicles", onManageVehicles) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp,24.dp,20.dp,28.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item { PageHeading("The bigger picture.", "Mileage insights for ${vehicle.name}") }
             item {
-                Surface(shape=MaterialTheme.shapes.large,color=BrandEvergreen,contentColor=androidx.compose.ui.graphics.Color.White) {
+                Surface(shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.primary,
+                    contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                            Text("TOTAL DISTANCE TRACKED",style=MaterialTheme.typography.labelSmall,color=BrandMint,modifier=Modifier.weight(1f))
-                            TripIcon(AppIcon.Reports,tint=BrandMint)
+                            Text("TOTAL DISTANCE TRACKED",style=MaterialTheme.typography.labelSmall,
+                                color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.78f),modifier=Modifier.weight(1f))
+                            TripIcon(AppIcon.Reports,tint=MaterialTheme.colorScheme.onPrimary.copy(alpha=.78f))
                         }
                         OdometerDisplay(state.stats.totalTracked,vehicle.odometerUnit)
-                        Text("${state.stats.readingCount} readings · all time",style=MaterialTheme.typography.bodySmall,color=BrandMint)
+                        Text("${state.stats.readingCount} readings · all time",style=MaterialTheme.typography.bodySmall,
+                            color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.78f))
                     }
                 }
             }

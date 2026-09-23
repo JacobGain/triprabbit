@@ -28,7 +28,8 @@ enum class AppIcon(@DrawableRes val resource: Int) {
     Shield(R.drawable.ic_shield), Download(R.drawable.ic_download), Upload(R.drawable.ic_upload),
     Note(R.drawable.ic_note), Edit(R.drawable.ic_edit), Trash(R.drawable.ic_trash),
     Archive(R.drawable.ic_archive), Gauge(R.drawable.ic_gauge), Distance(R.drawable.ic_distance),
-    Clock(R.drawable.ic_clock), Sun(R.drawable.ic_sun), Info(R.drawable.ic_info),
+    Clock(R.drawable.ic_clock), Sun(R.drawable.ic_sun), Moon(R.drawable.ic_moon),
+    Device(R.drawable.ic_device), Info(R.drawable.ic_info),
 }
 
 @Composable

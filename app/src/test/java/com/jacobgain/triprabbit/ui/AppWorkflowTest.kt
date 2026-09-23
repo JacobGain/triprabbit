@@ -1,5 +1,8 @@
 package com.jacobgain.triprabbit.ui
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.jacobgain.triprabbit.MainActivity
@@ -10,6 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.junit.Assert.assertEquals
 
 /** Exercises real navigation, Hilt, Room, and DataStore in an isolated local Android runtime. */
 @RunWith(RobolectricTestRunner::class)
@@ -51,9 +55,44 @@ class AppWorkflowTest {
         compose.onNodeWithText("Dark").performClick()
         compose.waitUntil(10_000) { compose.onAllNodes(hasText("Dark") and isSelected()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Dark").assertIsSelected()
+        assertEquals(Color.rgb(17, 24, 20), backgroundPixel())
+        compose.onNodeWithText("Home").performClick()
+        awaitText("A little more clarity.")
+        assertEquals(Color.rgb(17, 24, 20), backgroundPixel())
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Dark").assertIsSelected()
+        compose.onNodeWithText("Light").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodes(hasText("Light") and isSelected()).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(Color.rgb(246, 247, 243), backgroundPixel())
+        compose.onNodeWithText("System").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodes(hasText("System") and isSelected()).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(Color.rgb(246, 247, 243), backgroundPixel())
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Privacy policy"))
         compose.onNodeWithText("Privacy policy").performClick()
         awaitText("TripRabbit privacy policy")
+    }
+
+    @Test fun creatingVehicleFromGarageDoesNotLeaveTheFormOnTheBackStack() {
+        awaitText("Get Started")
+        compose.onNodeWithText("Get Started").performScrollTo().performClick()
+        compose.onNodeWithText("Vehicle name").performTextInput("First car")
+        compose.onNodeWithText("Current odometer").performTextInput("1000")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Create Vehicle") and hasClickAction())
+        compose.onNode(hasText("Create Vehicle") and hasClickAction()).performClick()
+        awaitText("1,000")
+
+        compose.onNodeWithContentDescription("Vehicles").performClick()
+        awaitText("Your garage.")
+        compose.onNodeWithContentDescription("Add Vehicle").performClick()
+        compose.onNodeWithText("Vehicle name").performTextInput("Second car")
+        compose.onNodeWithText("Current odometer").performTextInput("2000")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Create Vehicle") and hasClickAction())
+        compose.onNode(hasText("Create Vehicle") and hasClickAction()).performClick()
+        awaitText("Second car")
+        compose.activity.onBackPressedDispatcher.onBackPressed()
+        compose.waitForIdle()
+        compose.onNodeWithText("A little more clarity.").assertIsDisplayed()
+        compose.onNodeWithText("Create Vehicle").assertDoesNotExist()
     }
 
     private fun awaitText(text: String) {
@@ -64,5 +103,16 @@ class AppWorkflowTest {
         } catch (error: Throwable) {
             throw AssertionError("Waiting for '$text':\n${compose.onRoot().printToString()}", error)
         }
+    }
+
+    private fun backgroundPixel(): Int {
+        var pixel = 0
+        compose.runOnIdle {
+            val view = compose.activity.window.decorView
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            pixel = bitmap.getPixel(5, 200)
+        }
+        return pixel
     }
 }

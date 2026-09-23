@@ -84,19 +84,23 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
             }
         }
         item {
-            Surface(shape = MaterialTheme.shapes.large, color = BrandEvergreen, contentColor = androidx.compose.ui.graphics.Color.White) {
+            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("CURRENT ODOMETER", style = MaterialTheme.typography.labelSmall, color = BrandMint, modifier = Modifier.weight(1f))
-                        TripIcon(AppIcon.Gauge, tint = BrandMint)
+                        Text("CURRENT ODOMETER", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f), modifier = Modifier.weight(1f))
+                        TripIcon(AppIcon.Gauge, tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
                     }
                     if (latest != null) OdometerDisplay(latest.value, vehicle.odometerUnit) else Text("Ready for your first reading", style = MaterialTheme.typography.headlineSmall)
                     if (latest != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TripIcon(AppIcon.Clock, modifier = Modifier.size(14.dp), tint = BrandMint)
-                        Text("Updated ${latest.recordedAt.displayDate()}", style = MaterialTheme.typography.bodySmall, color = BrandMint)
+                        TripIcon(AppIcon.Clock, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
+                        Text("Updated ${latest.recordedAt.displayDate()}", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
                     }
                     Button(onClick = { onAdd(vehicle.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium,
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandMint, contentColor = BrandEvergreen)) {
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimary,
+                            contentColor = MaterialTheme.colorScheme.primary)) {
                         TripIcon(AppIcon.Add); Spacer(Modifier.width(8.dp)); Text("Add Reading", style = MaterialTheme.typography.labelLarge)
                     }
                 }

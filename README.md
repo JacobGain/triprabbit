@@ -10,7 +10,7 @@ A simple, private odometer history app for Android.
 - Persist vehicles and readings with Room and the current selection with DataStore
 - Dashboard mileage summaries, recent activity, and a history chart
 - Detailed tracked, 30-day, annual, and monthly statistics
-- System/light/dark themes, dynamic colour, accent palettes, AMOLED mode, and density controls
+- System/light/dark appearance modes and garage density controls
 - JSON backup/restore and per-vehicle CSV export through system file pickers
 
 ## Tech
@@ -30,8 +30,8 @@ History / Reports / Settings navigation keeps the main destinations close.
 Vehicle management is available from Home and the vehicle selector. History
 supports search and All Readings / This Month / With Notes filters; Reports
 includes CSV export. Reading forms include date/time pickers. The branded palette
-is the default, with system colours still available in Settings. The installed
-PNG artwork is documented in [UI assets](docs/ui-assets.md).
+is used in both appearance modes. The installed PNG artwork is documented in
+[UI assets](docs/ui-assets.md).
 
 The mockup's GPS trip tracking, business/personal classification, and tax
 deductions are not implemented. Screens show actual local odometer data;
