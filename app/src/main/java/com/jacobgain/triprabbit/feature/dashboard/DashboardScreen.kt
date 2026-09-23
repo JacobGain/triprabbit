@@ -106,7 +106,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
             first = { MetricTile("Last 30 days", "${state.stats.last30Days.grouped()} $unit", it, icon = AppIcon.History) },
             second = { MetricTile("Total tracked", "${state.stats.totalTracked.grouped()} $unit", it, icon = AppIcon.Distance) },
         ) }
-        item { DashboardArtworkSlot() }
+        item { BrandArtworkSlot(BrandArtwork.dashboard) }
         item { SectionCard {
             SectionTitle("Your week", "Distance recorded over the last 7 days", "Reports") { onStatistics(vehicle.id) }
             WeeklyMileageChart(state.readings, vehicle.odometerUnit)

@@ -15,7 +15,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.jacobgain.triprabbit.R
 
 val BrandEvergreen = Color(0xFF123D34)
@@ -39,10 +38,8 @@ fun TripIcon(icon: AppIcon, description: String? = null, modifier: Modifier = Mo
 
 @Composable
 fun BrandMark(modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(BrandEvergreen), contentAlignment = Alignment.Center) {
-        val resource = BrandArtwork.mark
-        if (resource != null) Image(painterResource(resource), null, Modifier.fillMaxSize().padding(6.dp))
-        else Text("TR", color = Color.White, fontSize = (maxWidth.value * .29f).sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    Box(modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(BrandMint), contentAlignment = Alignment.Center) {
+        Image(painterResource(R.drawable.brand_mark), null, Modifier.fillMaxSize().padding(4.dp))
     }
 }
 
@@ -54,35 +51,16 @@ fun BrandHeader(modifier: Modifier = Modifier) {
     }
 }
 
-/** External artwork is wired here when delivered. Null uses the finished text-first fallback. */
+/** Swappable artwork resources shared by the welcome screen and dashboard. */
 object BrandArtwork {
-    @DrawableRes val mark: Int? = null
-    @DrawableRes val welcome: Int? = null
-    @DrawableRes val dashboard: Int? = null
+    @DrawableRes val welcome: Int = R.drawable.welcome_art
+    @DrawableRes val dashboard: Int = R.drawable.dashboard_art
 }
 
 @Composable
-fun BrandArtworkSlot(@DrawableRes resource: Int?, modifier: Modifier = Modifier) {
-    if (resource != null) Image(painterResource(resource), contentDescription = null,
+fun BrandArtworkSlot(@DrawableRes resource: Int, modifier: Modifier = Modifier) {
+    Image(painterResource(resource), contentDescription = null,
         modifier = modifier.fillMaxWidth().aspectRatio(2.4f).clip(MaterialTheme.shapes.large), contentScale = ContentScale.Crop)
-}
-
-@Composable
-fun DashboardArtworkSlot() {
-    if (BrandArtwork.dashboard != null) {
-        BrandArtworkSlot(BrandArtwork.dashboard)
-    } else {
-        Surface(Modifier.fillMaxWidth().aspectRatio(2.4f), shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.primaryContainer) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.Center) {
-                Text("EVERY MILE ADDS UP", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Spacer(Modifier.height(8.dp))
-                Text("A little further, every day.", style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        }
-    }
 }
 
 @Composable

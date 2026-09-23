@@ -21,17 +21,17 @@ TripRabbit is fully local and requests no dangerous Android permissions.
 
 ## UI
 
-The Compose UI uses an evergreen and warm-neutral design system, temporary `TR`
-branding pending commissioned artwork, and a consistent outline control icon
-family. Onboarding, dashboard, history, reports, forms, vehicles, settings, and
-privacy share typography, surfaces, controls, and light/dark palettes. Home /
+The Compose UI uses an evergreen and warm-neutral design system, custom rabbit
+artwork, and a consistent outline control icon family. Onboarding, dashboard,
+history, reports, forms, vehicles, settings, and privacy share typography,
+surfaces, controls, and light/dark palettes. Home /
 History / Reports / Settings navigation keeps the main destinations close.
 
 Vehicle management is available from Home and the vehicle selector. History
 supports search and All Readings / This Month / With Notes filters; Reports
 includes CSV export. Reading forms include date/time pickers. The branded palette
-is the default, with system colours still available in Settings. Custom PNG
-artwork can be added through the slots documented in [UI assets](docs/ui-assets.md).
+is the default, with system colours still available in Settings. The installed
+PNG artwork is documented in [UI assets](docs/ui-assets.md).
 
 The mockup's GPS trip tracking, business/personal classification, and tax
 deductions are not implemented. Screens show actual local odometer data;

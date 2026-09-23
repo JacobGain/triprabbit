@@ -80,8 +80,7 @@ class UiOverhaulTest {
         capture("dashboard-light")
         compose.onNodeWithText("Add Reading").performClick()
         assertEquals(1L, added)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("A little further, every day."))
-        compose.onNodeWithText("A little further, every day.").assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
         capture("dashboard-artwork-slot")
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Recent readings"))
         capture("dashboard-activity")
@@ -203,11 +202,22 @@ class UiOverhaulTest {
         compose.runOnIdle {
             val icon = checkNotNull(compose.activity.getDrawable(com.jacobgain.triprabbit.R.mipmap.ic_launcher))
             val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
-            icon.setBounds(0, 0, 192, 192)
-            icon.draw(android.graphics.Canvas(bitmap))
+            val canvas = android.graphics.Canvas(bitmap)
+            canvas.scale(192f / 108f, 192f / 108f)
+            icon.setBounds(0, 0, 108, 108)
+            icon.draw(canvas)
             val target = File("build/reports/ui/launcher-icon.png")
             target.parentFile?.mkdirs()
             target.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val foreground = checkNotNull(compose.activity.getDrawable(com.jacobgain.triprabbit.R.drawable.ic_launcher_foreground))
+            val foregroundBitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+            val foregroundCanvas = android.graphics.Canvas(foregroundBitmap)
+            foregroundCanvas.scale(192f / 108f, 192f / 108f)
+            foreground.setBounds(0, 0, 108, 108)
+            foreground.draw(foregroundCanvas)
+            File("build/reports/ui/launcher-foreground.png").outputStream().use {
+                foregroundBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
         }
     }
 

@@ -26,13 +26,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         BrandHeader()
         Spacer(Modifier.height(12.dp))
-        if (BrandArtwork.welcome != null) BrandArtworkSlot(BrandArtwork.welcome)
-        else Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer) {
-            Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                BrandMark(Modifier.size(104.dp))
-                StatusPill("A little further, every day", icon = AppIcon.Distance)
-            }
-        }
+        BrandArtworkSlot(BrandArtwork.welcome)
         PageHeading("Miles for\nwhat matters.", "A calmer way to keep track of your vehicle’s mileage. No accounts. No distractions.")
         Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             WelcomeFeature(AppIcon.Gauge, "Log in a moment", "One reading. An organised history.")
