@@ -28,6 +28,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 import com.jacobgain.triprabbit.BuildConfig
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.jacobgain.triprabbit.core.designsystem.component.*
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.selection.toggleable
@@ -40,13 +42,14 @@ import androidx.compose.foundation.background
 
 data class SettingsUiState(val settings:AppSettings=AppSettings(),val importSummary:BackupSummary?=null,val busy:Boolean=false,val error:String?=null)
 sealed interface SettingsEffect{data class Message(val value:String):SettingsEffect}
-@HiltViewModel class SettingsViewModel @Inject constructor(private val settingsRepository:SettingsRepository,private val data:DataRepository):ViewModel(){
+@HiltViewModel class SettingsViewModel @Inject constructor(private val settingsRepository:SettingsRepository,private val data:DataRepository,@ApplicationContext private val context:Context):ViewModel(){
     private val local=MutableStateFlow(SettingsUiState());private var importUri:Uri?=null
     val uiState=combine(settingsRepository.observeSettings(),local){settings,state->state.copy(settings=settings)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5_000),SettingsUiState())
     private val _effects=Channel<SettingsEffect>(Channel.BUFFERED);val effects=_effects.receiveAsFlow()
     fun theme(v:ThemeMode)=launch{settingsRepository.setThemeMode(v)};fun density(v:DisplayDensity)=launch{settingsRepository.setDisplayDensity(v)};fun confirmDelete(v:Boolean)=launch{settingsRepository.setConfirmReadingDeletion(v)}
     fun accent(v:Int?)=launch{settingsRepository.setAccentColor(v)}
     fun export(uri:Uri)=work("Backup exported"){data.exportBackup(uri)}
+    fun loadSampleData(){if(BuildConfig.DEBUG)work("Sample data loaded"){context.assets.open("sample-trip-data.json").bufferedReader().use{data.restoreBackupContent(it.readText())}}}
     fun inspect(uri:Uri){viewModelScope.launch{local.update{it.copy(busy=true,error=null)};runCatching{withContext(Dispatchers.IO){data.inspectBackup(uri)}}.onSuccess{summary->importUri=uri;local.update{it.copy(busy=false,importSummary=summary)}}.onFailure(::failure)}}
     fun dismissImport(){importUri=null;local.update{it.copy(importSummary=null)}}
     fun restore(){val uri=importUri?:return;viewModelScope.launch{local.update{it.copy(busy=true)};runCatching{withContext(Dispatchers.IO){data.restoreBackup(uri)}}.onSuccess{summary->dismissImport();local.update{it.copy(busy=false)};_effects.send(SettingsEffect.Message("Restored ${summary.vehicleCount} vehicles"))}.onFailure(::failure)}}
@@ -61,14 +64,17 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     val state=viewModel.uiState.collectAsStateWithLifecycle().value
     val json=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(viewModel::export)}
     val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(viewModel::inspect)}
+    var confirmSample by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit){viewModel.effects.collect{if(it is SettingsEffect.Message)onMessage(it.value)}}
     state.importSummary?.let{s->AlertDialog(onDismissRequest=viewModel::dismissImport,title={Text("Restore backup?")},text={Text("${s.vehicleCount} vehicles and ${s.readingCount} readings\nExported ${s.exportedAt.displayDate()}\n\nThis replaces all current TripRabbit data.")},confirmButton={TextButton(onClick=viewModel::restore){Text("Restore")}},dismissButton={TextButton(onClick=viewModel::dismissImport){Text("Cancel")}})}
     state.error?.let{AlertDialog(onDismissRequest=viewModel::clearError,title={Text("Couldn't complete operation")},text={Text(it)},confirmButton={TextButton(onClick=viewModel::clearError){Text("OK")}})}
+    if(BuildConfig.DEBUG && confirmSample) AlertDialog(onDismissRequest={confirmSample=false},title={Text("Load sample data?")},text={Text("This replaces all current vehicles and trips with debug sample data.")},confirmButton={TextButton(onClick={confirmSample=false;viewModel.loadSampleData()}){Text("Replace data")}},dismissButton={TextButton(onClick={confirmSample=false}){Text("Cancel")}})
     SettingsContent(state,SettingsActions(
         theme={viewModel.theme(it)},
         accent={viewModel.accent(it)},
         density={viewModel.density(it)},confirmDelete={viewModel.confirmDelete(it)},
         export={json.launch("triprabbit-backup.json")},restore={open.launch(arrayOf("application/json","text/plain"))},
+        loadSample={confirmSample=true},
         privacy=onPrivacy,
     ))
 }
@@ -76,7 +82,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
 data class SettingsActions(
     val theme:(ThemeMode)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},
     val accent:(Int?)->Unit={},
-    val export:()->Unit={},val restore:()->Unit={},val privacy:()->Unit={},
+    val export:()->Unit={},val restore:()->Unit={},val loadSample:()->Unit={},val privacy:()->Unit={},
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -115,6 +121,10 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
             ActionRow("Export backup","All vehicles and readings, as JSON.",AppIcon.Download,actions.export,enabled=!state.busy)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             ActionRow("Restore backup","Replace local records from a backup.",AppIcon.Upload,actions.restore,enabled=!state.busy)
+            if(BuildConfig.DEBUG) {
+                HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                ActionRow("Load sample data","Debug only · replace local records with sample trips.",AppIcon.Reports,actions.loadSample,enabled=!state.busy)
+            }
             if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
         } }
         item { SectionCard {
