@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jacobgain.triprabbit.core.model.OdometerReading
 import com.jacobgain.triprabbit.core.repository.OdometerRepository
+import com.jacobgain.triprabbit.core.repository.VehicleRepository
 import com.jacobgain.triprabbit.core.repository.SettingsRepository
 import com.jacobgain.triprabbit.core.usecase.EditOdometerReadingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,19 +15,20 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import javax.inject.Inject
 
-data class EditReadingUiState(val loading: Boolean = true, val reading: OdometerReading? = null, val value: String = "", val recordedAt: Instant = Instant.now(), val note: String = "", val name: String = "", val hasTime: Boolean = false, val saving: Boolean = false, val error: String? = null, val confirmDeletion:Boolean = true)
+data class EditReadingUiState(val loading: Boolean = true, val reading: OdometerReading? = null, val startValue: String = "", val value: String = "", val recordedAt: Instant = Instant.now(), val note: String = "", val name: String = "", val hasTime: Boolean = false, val saving: Boolean = false, val error: String? = null, val confirmDeletion:Boolean = true, val unit: String = "")
 @HiltViewModel
-class EditReadingViewModel @Inject constructor(savedState: SavedStateHandle, private val repository: OdometerRepository, settings:SettingsRepository, private val editReading: EditOdometerReadingUseCase) : ViewModel() {
+class EditReadingViewModel @Inject constructor(savedState: SavedStateHandle, private val repository: OdometerRepository, vehicles: VehicleRepository, settings:SettingsRepository, private val editReading: EditOdometerReadingUseCase) : ViewModel() {
     private val id = checkNotNull(savedState.get<String>("readingId")).toLong()
     private val _state = MutableStateFlow(EditReadingUiState()); val uiState = _state.asStateFlow()
     private val _effects = Channel<ReadingEffect>(Channel.BUFFERED); val effects = _effects.receiveAsFlow()
     init { viewModelScope.launch {
         combine(repository.observeReading(id),settings.observeSettings()){reading,prefs->reading to prefs}.first().let { (reading,prefs) ->
             _state.value = if(reading==null) EditReadingUiState(loading=false,error="Reading not found.",confirmDeletion=prefs.confirmReadingDeletion)
-            else EditReadingUiState(loading=false,reading=reading,value=reading.value.toString(),recordedAt=reading.recordedAt,note=reading.note.orEmpty(),name=reading.name.orEmpty(),hasTime=reading.hasTime,confirmDeletion=prefs.confirmReadingDeletion)
+            else EditReadingUiState(loading=false,reading=reading,startValue=(reading.startValue ?: repository.surrounding(reading.vehicleId, reading.recordedAt, id).first?.value ?: reading.value).toString(),value=reading.value.toString(),recordedAt=reading.recordedAt,note=reading.note.orEmpty(),name=reading.name.orEmpty(),hasTime=reading.hasTime,confirmDeletion=prefs.confirmReadingDeletion,unit=vehicles.getVehicle(reading.vehicleId)?.odometerUnit?.abbreviation.orEmpty())
         }
     } }
     fun valueChanged(v: String) { _state.update { it.copy(value=v.filter(Char::isDigit), error=null) } }
+    fun startValueChanged(v: String) { _state.update { it.copy(startValue=v.filter(Char::isDigit), error=null) } }
     fun noteChanged(v: String) { _state.update { it.copy(note=v) } }
     fun nameChanged(v: String) { _state.update { it.copy(name=v) } }
     fun timeChanged(v: Boolean) { _state.update { it.copy(hasTime=v) } }

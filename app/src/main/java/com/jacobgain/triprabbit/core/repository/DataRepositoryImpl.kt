@@ -35,6 +35,10 @@ class DataRepositoryImpl @Inject constructor(
     override suspend fun inspectBackup(uri: Uri)=parse(uri).summary
     override suspend fun restoreBackup(uri: Uri): BackupSummary {
         val parsed=parse(uri)
+        return replaceWith(parsed)
+    }
+    override suspend fun restoreBackupContent(content: String): BackupSummary = replaceWith(parseText(content))
+    private suspend fun replaceWith(parsed: Parsed): BackupSummary {
         database.withTransaction { database.vehicleDao().deleteAll();database.vehicleDao().insertAll(parsed.vehicles);database.odometerReadingDao().insertAll(parsed.readings) }
         return parsed.summary
     }
@@ -42,7 +46,7 @@ class DataRepositoryImpl @Inject constructor(
     override suspend fun exportVehicleCsv(uri: Uri, vehicleId: Long) {
         val vehicle=database.vehicleDao().getById(vehicleId)?:error("Vehicle not found.")
         val readings=database.odometerReadingDao().getAll().filter{it.vehicleId==vehicleId}.sortedBy{it.recordedAt};var previous:Long?=null
-        resolver.openOutputStream(uri,"wt")?.bufferedWriter()?.use{writer->writer.appendLine("date,trip name,odometer,unit,distance,notes");readings.forEach{r->val difference=previous?.let{r.value-it};writer.appendLine(listOf(r.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate(),r.name.orEmpty(),r.value,vehicle.odometerUnit.abbreviation,difference?:"",r.note.orEmpty()).joinToString(","){csv(it.toString())});previous=r.value}}?:error("Couldn't open the selected file.")
+        resolver.openOutputStream(uri,"wt")?.bufferedWriter()?.use{writer->writer.appendLine("date,trip name,start odometer,finish odometer,unit,distance,notes");readings.forEach{r->val difference=r.startValue?.let { r.value-it } ?: previous?.let{r.value-it};writer.appendLine(listOf(r.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate(),r.name.orEmpty(),r.startValue ?: previous ?: "",r.value,vehicle.odometerUnit.abbreviation,difference?:"",r.note.orEmpty()).joinToString(","){csv(it.toString())});previous=r.value}}?:error("Couldn't open the selected file.")
     }
 
     override suspend fun exportVehicleReport(uri: Uri, vehicleId: Long, from: LocalDate, through: LocalDate, pdf: Boolean) {
@@ -52,13 +56,14 @@ class DataRepositoryImpl @Inject constructor(
             .sortedWith(compareBy<OdometerReadingEntity> { it.recordedAt }.thenBy { it.id })
         val rows = ordered.mapIndexed { index, reading ->
             ReportRow(reading.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate(), reading.name.orEmpty(),
-                reading.note.orEmpty(), reading.value, ordered.getOrNull(index - 1)?.let { reading.value - it.value })
+                reading.note.orEmpty(), reading.value, reading.startValue ?: ordered.getOrNull(index - 1)?.let { it.value },
+                reading.startValue?.let { reading.value - it } ?: ordered.getOrNull(index - 1)?.let { reading.value - it.value })
         }.filter { it.date >= from && it.date <= through }
             .sortedWith(compareBy<ReportRow> { it.name.ifBlank { "Untitled trip" }.lowercase() }.thenBy { it.date })
         if (pdf) writePdf(uri, vehicle.name, vehicle.odometerUnit.abbreviation, from, through, rows)
         else resolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
-            writer.appendLine("date,trip name,notes,odometer (${vehicle.odometerUnit.abbreviation}),distance (${vehicle.odometerUnit.abbreviation})")
-            rows.forEach { row -> writer.appendLine(listOf(row.date,row.name,row.note,row.odometer,row.distance ?: "").joinToString(",") { csv(it.toString()) }) }
+            writer.appendLine("date,trip name,notes,start odometer,finish odometer,distance (${vehicle.odometerUnit.abbreviation})")
+            rows.forEach { row -> writer.appendLine(listOf(row.date,row.name,row.note,row.startValue ?: "",row.odometer,row.distance ?: "").joinToString(",") { csv(it.toString()) }) }
         } ?: error("Couldn't open the selected file.")
     }
 
@@ -95,7 +100,7 @@ class DataRepositoryImpl @Inject constructor(
             rows.groupBy { it.name.ifBlank { "Untitled trip" } }.forEach { (trip, entries) ->
                 line("$trip  |  ${entries.sumOf { it.distance ?: 0 }} $unit", true)
                 entries.forEach { row ->
-                    line("${row.date}  |  Odometer ${row.odometer} $unit  |  Distance ${row.distance?.let { "$it $unit" } ?: "-"}")
+                    line("${row.date}  |  Odometer ${row.startValue ?: "-"}–${row.odometer} $unit  |  Distance ${row.distance?.let { "$it $unit" } ?: "-"}")
                     if (row.note.isNotBlank()) line("    Note: ${row.note}")
                 }
             }
@@ -107,6 +112,10 @@ class DataRepositoryImpl @Inject constructor(
 
     private fun parse(uri:Uri):Parsed {
         val text=resolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()}?:error("Couldn't open the selected file.")
+        return parseText(text)
+    }
+
+    private fun parseText(text: String): Parsed {
         val root=runCatching{JSONObject(text)}.getOrElse{error("This isn't a valid TripRabbit backup.")}
         require(root.optInt("version",-1)==1){"This backup version isn't supported."}
         val groups=root.getJSONArray("vehicles");val vehicles=mutableListOf<VehicleEntity>();val readings=mutableListOf<OdometerReadingEntity>()
@@ -131,9 +140,9 @@ class DataRepositoryImpl @Inject constructor(
 
 private data class Parsed(val vehicles:List<VehicleEntity>,val readings:List<OdometerReadingEntity>,val summary:BackupSummary)
 private fun VehicleEntity.json()=JSONObject().put("id",id).put("name",name).putOpt("make",make).putOpt("model",model).putOpt("year",year).putOpt("licensePlate",licensePlate).put("odometerUnit",odometerUnit.name).putOpt("colorKey",colorKey).putOpt("notes",notes).put("createdAt",createdAt.toString()).putOpt("archivedAt",archivedAt?.toString())
-private fun OdometerReadingEntity.json()=JSONObject().put("id",id).put("vehicleId",vehicleId).put("value",value).put("recordedAt",recordedAt.toString()).putOpt("note",note).putOpt("name",name).put("hasTime",hasTime).put("createdAt",createdAt.toString()).putOpt("updatedAt",updatedAt?.toString())
+private fun OdometerReadingEntity.json()=JSONObject().put("id",id).put("vehicleId",vehicleId).put("value",value).put("recordedAt",recordedAt.toString()).putOpt("note",note).putOpt("name",name).put("hasTime",hasTime).putOpt("startValue",startValue).put("createdAt",createdAt.toString()).putOpt("updatedAt",updatedAt?.toString())
 private fun JSONObject.vehicle()=VehicleEntity(getLong("id"),getString("name"),stringOrNull("make"),stringOrNull("model"),if(isNull("year"))null else getInt("year"),stringOrNull("licensePlate"),DistanceUnit.valueOf(getString("odometerUnit")),stringOrNull("colorKey"),stringOrNull("notes"),Instant.parse(getString("createdAt")),stringOrNull("archivedAt")?.let(Instant::parse))
-private fun JSONObject.reading()=OdometerReadingEntity(getLong("id"),getLong("vehicleId"),getLong("value"),Instant.parse(getString("recordedAt")),stringOrNull("note"),Instant.parse(getString("createdAt")),stringOrNull("updatedAt")?.let(Instant::parse),stringOrNull("name"),optBoolean("hasTime",true))
-private data class ReportRow(val date: LocalDate, val name: String, val note: String, val odometer: Long, val distance: Long?)
+private fun JSONObject.reading()=OdometerReadingEntity(getLong("id"),getLong("vehicleId"),getLong("value"),Instant.parse(getString("recordedAt")),stringOrNull("note"),Instant.parse(getString("createdAt")),stringOrNull("updatedAt")?.let(Instant::parse),stringOrNull("name"),optBoolean("hasTime",true),if(has("startValue") && !isNull("startValue")) getLong("startValue") else null)
+private data class ReportRow(val date: LocalDate, val name: String, val note: String, val odometer: Long, val startValue: Long?, val distance: Long?)
 private fun JSONObject.stringOrNull(key:String)=if(!has(key)||isNull(key))null else getString(key)
 private fun csv(value:String)="\"${value.replace("\"","\"\"")}\""

@@ -31,11 +31,14 @@ class CreateVehicleUseCase @Inject constructor(
 }
 
 class AddOdometerReadingUseCase @Inject constructor(private val vehicles: VehicleRepository, private val readings: OdometerRepository) {
-    suspend operator fun invoke(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, name: String? = null, hasTime: Boolean = false): Long {
+    suspend operator fun invoke(vehicleId: Long, startValue: Long, value: Long, recordedAt: Instant, note: String?, name: String? = null, hasTime: Boolean = false): Long {
         if (vehicles.getVehicle(vehicleId) == null) throw com.jacobgain.triprabbit.core.validation.ReadingError.VehicleMissing
         val (previous, next) = readings.surrounding(vehicleId, recordedAt)
+        require(startValue >= 0) { "Starting odometer cannot be negative." }
+        require(value >= startValue) { "Finish odometer must be at least the start odometer." }
+        require(previous == null || startValue >= previous.value) { "Start odometer is lower than the previous reading of ${previous?.value}." }
         ReadingValidator.validate(value, previous, next)?.let { throw it }
-        return readings.addReading(vehicleId, value, recordedAt, note?.trim()?.takeIf { it.isNotEmpty() }, Instant.now(), name?.trim()?.takeIf { it.isNotEmpty() }, hasTime)
+        return readings.addReading(vehicleId, value, recordedAt, note?.trim()?.takeIf { it.isNotEmpty() }, Instant.now(), name?.trim()?.takeIf { it.isNotEmpty() }, hasTime, startValue)
     }
 }
 
@@ -43,8 +46,12 @@ class EditOdometerReadingUseCase @Inject constructor(private val readings: Odome
     suspend operator fun invoke(id: Long, value: Long, recordedAt: Instant, note: String?, name: String? = null, hasTime: Boolean = false) {
         val current = readings.getReading(id) ?: throw com.jacobgain.triprabbit.core.validation.ReadingError.ReadingMissing
         val (previous, next) = readings.surrounding(current.vehicleId, recordedAt, id)
+        val start = current.startValue ?: previous?.value ?: value
+        require(start >= 0) { "Starting odometer cannot be negative." }
+        require(value >= start) { "Finish odometer must be at least the start odometer." }
+        require(previous == null || start >= previous.value) { "Start odometer is lower than the previous reading of ${previous?.value}." }
         ReadingValidator.validate(value, previous, next)?.let { throw it }
-        readings.updateReading(current.copy(value = value, recordedAt = recordedAt, note = note?.trim()?.takeIf { it.isNotEmpty() }, name = name?.trim()?.takeIf { it.isNotEmpty() }, hasTime = hasTime, updatedAt = Instant.now()))
+        readings.updateReading(current.copy(value = value, startValue = start, recordedAt = recordedAt, note = note?.trim()?.takeIf { it.isNotEmpty() }, name = name?.trim()?.takeIf { it.isNotEmpty() }, hasTime = hasTime, updatedAt = Instant.now()))
     }
 }
 

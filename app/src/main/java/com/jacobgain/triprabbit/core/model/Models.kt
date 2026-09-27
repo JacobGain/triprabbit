@@ -28,6 +28,7 @@ data class OdometerReading(
     val updatedAt: Instant?,
     val name: String? = null,
     val hasTime: Boolean = false,
+    val startValue: Long? = null,
 )
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }

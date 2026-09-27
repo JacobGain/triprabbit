@@ -15,13 +15,13 @@ class CalculateMileageStatsUseCase @Inject constructor() {
         if (sorted.isEmpty()) return MileageStats()
         val first = sorted.first(); val latest = sorted.last()
         val cutoff = now.minus(30, ChronoUnit.DAYS)
-        val cutoffBase = sorted.lastOrNull { !it.recordedAt.isAfter(cutoff) } ?: sorted.first()
         val zone = ZoneId.systemDefault(); val year = now.atZone(zone).year
-        val yearReadings = sorted.filter { it.recordedAt.atZone(zone).year == year }
-        val yearDistance = if (yearReadings.size > 1) yearReadings.last().value - yearReadings.first().value else 0
+        val distances = sorted.mapIndexed { index, reading -> reading.id to (reading.startValue?.let { reading.value - it } ?: if (index == 0) 0L else reading.value - sorted[index - 1].value) }.toMap()
+        val yearDistance = sorted.filter { it.recordedAt.atZone(zone).year == year }.sumOf { distances[it.id] ?: 0L }
         val days = max(1, ChronoUnit.DAYS.between(first.recordedAt, latest.recordedAt))
         val months = max(1.0, days / 30.4375)
-        val total = latest.value - first.value
-        return MileageStats(latest.value, total, latest.value - cutoffBase.value, yearDistance, sorted.size, (total / months).roundToLong())
+        val total = distances.values.sum()
+        val last30 = sorted.filter { !it.recordedAt.isBefore(cutoff) }.sumOf { distances[it.id] ?: 0L }
+        return MileageStats(latest.value, total, last30, yearDistance, sorted.size, (total / months).roundToLong())
     }
 }

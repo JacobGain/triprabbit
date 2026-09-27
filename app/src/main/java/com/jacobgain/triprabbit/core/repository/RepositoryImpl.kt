@@ -33,8 +33,8 @@ class OdometerRepositoryImpl @Inject constructor(private val dao: OdometerReadin
     override suspend fun getReading(id: Long) = dao.getById(id)?.toDomain()
     override suspend fun surrounding(vehicleId: Long, at: Instant, excludingId: Long) =
         dao.previous(vehicleId, at, excludingId)?.toDomain() to dao.next(vehicleId, at, excludingId)?.toDomain()
-    override suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String?, hasTime: Boolean) =
-        dao.insert(OdometerReadingEntity(vehicleId = vehicleId, value = value, recordedAt = recordedAt, note = note, createdAt = createdAt, updatedAt = null, name = name, hasTime = hasTime))
+    override suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String?, hasTime: Boolean, startValue: Long?) =
+        dao.insert(OdometerReadingEntity(vehicleId = vehicleId, value = value, recordedAt = recordedAt, note = note, createdAt = createdAt, updatedAt = null, name = name, hasTime = hasTime, startValue = startValue))
     override suspend fun updateReading(reading: OdometerReading) = dao.update(reading.toEntity())
     override suspend fun deleteReading(id: Long) = dao.delete(id)
 }
@@ -57,5 +57,5 @@ private fun VehicleInput.toEntity(now: Instant) = VehicleEntity(
 )
 
 private fun Vehicle.toEntity() = VehicleEntity(id, name.trim(), make.clean(), model.clean(), year, licensePlate.clean(), odometerUnit, colorKey.clean(), notes.clean(), createdAt, archivedAt)
-private fun OdometerReading.toEntity() = OdometerReadingEntity(id, vehicleId, value, recordedAt, note.clean(), createdAt, updatedAt, name.clean(), hasTime)
+private fun OdometerReading.toEntity() = OdometerReadingEntity(id, vehicleId, value, recordedAt, note.clean(), createdAt, updatedAt, name.clean(), hasTime, startValue)
 private fun String?.clean() = this?.trim()?.takeIf(String::isNotEmpty)

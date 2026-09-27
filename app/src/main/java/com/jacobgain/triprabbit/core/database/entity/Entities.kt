@@ -47,4 +47,5 @@ data class OdometerReadingEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: Instant?,
     val name: String? = null,
     @ColumnInfo(name = "has_time", defaultValue = "1") val hasTime: Boolean = true,
+    @ColumnInfo(name = "start_value") val startValue: Long? = null,
 )

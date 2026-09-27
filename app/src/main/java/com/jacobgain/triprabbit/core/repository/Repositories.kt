@@ -23,7 +23,7 @@ interface OdometerRepository {
     fun observeReading(id: Long): Flow<OdometerReading?>
     suspend fun getReading(id: Long): OdometerReading?
     suspend fun surrounding(vehicleId: Long, at: Instant, excludingId: Long = -1): Pair<OdometerReading?, OdometerReading?>
-    suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String? = null, hasTime: Boolean = false): Long
+    suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String? = null, hasTime: Boolean = false, startValue: Long? = null): Long
     suspend fun updateReading(reading: OdometerReading)
     suspend fun deleteReading(id: Long)
 }
@@ -43,6 +43,7 @@ interface DataRepository {
     suspend fun exportBackup(uri: Uri): BackupSummary
     suspend fun inspectBackup(uri: Uri): BackupSummary
     suspend fun restoreBackup(uri: Uri): BackupSummary
+    suspend fun restoreBackupContent(content: String): BackupSummary
     suspend fun exportVehicleCsv(uri: Uri, vehicleId: Long)
     suspend fun exportVehicleReport(uri: Uri, vehicleId: Long, from: LocalDate, through: LocalDate, pdf: Boolean)
 }
