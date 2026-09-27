@@ -98,13 +98,12 @@ fun VehicleEditorContent(state: VehicleEditorUiState, onBack: () -> Unit = {},
 @Composable
 fun VehicleListScreen(vehicles: List<Vehicle>, selectedId: Long?, latestValues: Map<Long, Long>, density: DisplayDensity,
     onSelect: (Long) -> Unit, onOpen: (Long) -> Unit, onAdd: () -> Unit, onBack: (() -> Unit)? = null) {
-    Scaffold(topBar = { DetailTopBar("Vehicles", onBack) }, floatingActionButton = {
-        ExtendedFloatingActionButton(onClick = onAdd, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = MaterialTheme.shapes.medium, icon = { TripIcon(AppIcon.Add, "Add Vehicle") }, text = { Text("Add Vehicle") })
-    }) { padding ->
+    Scaffold { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 12.dp, 20.dp, 100.dp),
             verticalArrangement = Arrangement.spacedBy(if (density == DisplayDensity.COMPACT) 8.dp else 16.dp)) {
-            item { PageHeading("Garage", "${vehicles.size} ${if (vehicles.size == 1) "vehicle" else "vehicles"}") }
+            item { PageHeading("Garage", "${vehicles.size} ${if (vehicles.size == 1) "vehicle" else "vehicles"}", action = {
+                FilledTonalButton(onClick = onAdd, shape = MaterialTheme.shapes.medium) { TripIcon(AppIcon.Add); Spacer(Modifier.width(6.dp)); Text("Add vehicle") }
+            }) }
             if (vehicles.isEmpty()) item { EmptyState("Room for your first vehicle", "Add a vehicle to start keeping track of your mileage.", "Add Vehicle", onAdd) }
             items(vehicles, key = { it.id }) { vehicle ->
                 if (density == DisplayDensity.COMPACT) {
@@ -177,14 +176,14 @@ fun VehicleDetailsContent(state: VehicleDetailsUiState, onBack: () -> Unit = {},
             item { SectionCard {
                 SectionTitle("Current odometer")
                 state.readings.firstOrNull()?.let { OdometerDisplay(it.value, vehicle.odometerUnit) } ?: Text("No readings yet")
-                PrimaryAction("Add Reading", { onAdd(vehicle.id) }, icon = AppIcon.Add, enabled = !state.busy)
+                PrimaryAction("Add Trip", { onAdd(vehicle.id) }, icon = AppIcon.Add, enabled = !state.busy)
             } }
             item { AdaptivePair(
-                first = { MetricTile("Distance tracked", "${if (state.readings.size > 1) (state.readings.first().value - state.readings.last().value).grouped() else "0"} ${vehicle.odometerUnit.abbreviation}", it, icon = AppIcon.Distance) },
+                first = { MetricTile("Distance tracked", "${state.readings.sortedBy { reading -> reading.recordedAt }.mapIndexed { index, reading -> reading.startValue?.let { reading.value - it } ?: if (index == 0) 0L else reading.value - state.readings.sortedBy { r -> r.recordedAt }[index - 1].value }.sum().grouped()} ${vehicle.odometerUnit.abbreviation}", it, icon = AppIcon.Distance) },
                 second = { MetricTile("Readings logged", state.readings.size.toString(), it, icon = AppIcon.History) },
             ) }
             item { SectionCard {
-                ActionRow("View History", "All readings for ${vehicle.name}", AppIcon.History, { onHistory(vehicle.id) }, enabled = !state.busy)
+                ActionRow("View Trips", "All trips for ${vehicle.name}", AppIcon.History, { onHistory(vehicle.id) }, enabled = !state.busy)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 ActionRow("Edit Vehicle", "Name, details, and notes", AppIcon.Edit, { onEdit(vehicle.id) }, enabled = !state.busy)
                 vehicle.licensePlate?.let { Text("License plate · $it", style = MaterialTheme.typography.bodyMedium) }

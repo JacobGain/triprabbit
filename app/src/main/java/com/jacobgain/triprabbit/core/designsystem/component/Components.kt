@@ -27,13 +27,13 @@ import com.jacobgain.triprabbit.core.util.grouped
 @Composable
 fun AppNavigation(current: String, onNavigate: (String) -> Unit) {
     val largeText = LocalDensity.current.fontScale > 1.4f
-    val destinations = listOf(Triple("home", "Home", AppIcon.Home), Triple("history", "History", AppIcon.History),
-        Triple("reports", "Reports", AppIcon.Reports), Triple("settings", "Settings", AppIcon.Settings))
+    val destinations = listOf(Triple("history", "Trips", AppIcon.History), Triple("reports", "Reports", AppIcon.Reports),
+        Triple("add", "", AppIcon.Add), Triple("vehicles", "Garage", AppIcon.Garage), Triple("settings", "Settings", AppIcon.Settings))
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                destinations.chunked(if (largeText) 2 else 4).forEach { group ->
+                destinations.chunked(5).forEach { group ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         group.forEach { (route, label, icon) ->
                     val selected = current == route
@@ -41,8 +41,13 @@ fun AppNavigation(current: String, onNavigate: (String) -> Unit) {
                     val itemModifier = Modifier.weight(1f).clip(MaterialTheme.shapes.medium)
                         .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                         .selectable(selected, role = Role.Tab, onClick = { onNavigate(route) }).heightIn(min = 52.dp).padding(vertical = 10.dp)
-                    if (largeText) Row(itemModifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        TripIcon(icon, tint = color); Spacer(Modifier.width(8.dp)); Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                    if (route == "add") {
+                        Box(Modifier.weight(1f).heightIn(min = 54.dp), contentAlignment = Alignment.Center) {
+                            FilledIconButton(onClick = { onNavigate(route) }, modifier = Modifier.size(if (largeText) 48.dp else 54.dp), shape = androidx.compose.foundation.shape.CircleShape,
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) { TripIcon(icon) }
+                        }
+                    } else if (largeText) Column(itemModifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        TripIcon(icon, tint = color); Text(label, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     } else Column(itemModifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         TripIcon(icon, tint = color); Text(label, style = MaterialTheme.typography.labelSmall, color = color)
                     }
@@ -133,10 +138,10 @@ fun PrimaryAction(label: String, onClick: () -> Unit, modifier: Modifier = Modif
 
 @Composable
 fun FormField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
-    hint: String? = null, suffix: String? = null, keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    hint: String? = null, placeholder: String? = null, suffix: String? = null, keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     singleLine: Boolean = true, isError: Boolean = false, enabled: Boolean = true, textStyle: TextStyle = MaterialTheme.typography.bodyLarge) {
     OutlinedTextField(value, onValueChange, modifier.fillMaxWidth(), enabled = enabled,
-        label = { Text(label) }, supportingText = hint?.let { { Text(it) } },
+        label = { Text(label) }, placeholder = placeholder?.let { { Text(it) } }, supportingText = hint?.let { { Text(it) } },
         suffix = suffix?.let { { Text(it) } }, singleLine = singleLine, minLines = if (singleLine) 1 else 3,
         keyboardOptions = keyboardOptions, isError = isError, shape = MaterialTheme.shapes.medium,
         textStyle = textStyle, colors = OutlinedTextFieldDefaults.colors(

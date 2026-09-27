@@ -61,7 +61,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
     if (state.loading) { LoadingState(); return }
     if (vehicle == null) { EmptyState("No vehicle selected", "Add a vehicle to start logging mileage.", "Add vehicle", onManageVehicles); return }
     val latest = state.readings.firstOrNull()
-    val sinceLast = latest?.value?.minus(state.readings.getOrNull(1)?.value ?: latest.value) ?: 0
+    val sinceLast = latest?.let { it.value - (it.startValue ?: state.readings.getOrNull(1)?.value ?: it.value) } ?: 0
     val unit = vehicle.odometerUnit.abbreviation
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp, 16.dp, 20.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
@@ -100,7 +100,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
                     Button(onClick = { onAdd(vehicle.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimary,
                             contentColor = MaterialTheme.colorScheme.primary)) {
-                        TripIcon(AppIcon.Add); Spacer(Modifier.width(8.dp)); Text("Add Reading", style = MaterialTheme.typography.labelLarge)
+                        TripIcon(AppIcon.Add); Spacer(Modifier.width(8.dp)); Text("Add Trip", style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -114,7 +114,7 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
             WeeklyMileageChart(state.readings, vehicle.odometerUnit)
         } }
         item { SectionCard {
-            SectionTitle("Recent readings", "${state.stats.readingCount} readings in your history", "View History") { onHistory(vehicle.id) }
+            SectionTitle("Recent trips", "${state.stats.readingCount} trips in your history", "View Trips") { onHistory(vehicle.id) }
             if (state.readings.isEmpty()) Text("No recent readings.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             state.readings.take(3).forEachIndexed { index, reading ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -143,9 +143,11 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
 fun WeeklyMileageChart(readings: List<OdometerReading>, unit: DistanceUnit) {
     val today = LocalDate.now()
     val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
-    val distances = readings.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id }).zipWithNext()
-        .groupBy { (_, end) -> end.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate() }
-        .mapValues { (_, intervals) -> intervals.sumOf { (start, end) -> end.value - start.value } }
+    val ordered = readings.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
+    val distances = ordered.mapIndexedNotNull { index, reading ->
+        val distance = reading.startValue?.let { reading.value - it } ?: if (index == 0) null else reading.value - ordered[index - 1].value
+        distance?.let { reading.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate() to it }
+    }.groupBy({ it.first }, { it.second }).mapValues { (_, values) -> values.sum() }
     val max = days.maxOf { distances[it] ?: 0 }.coerceAtLeast(1)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
         days.forEach { day ->

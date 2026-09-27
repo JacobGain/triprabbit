@@ -117,7 +117,7 @@ fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, ex
                             TripIcon(AppIcon.Reports,tint=MaterialTheme.colorScheme.onPrimary.copy(alpha=.78f))
                         }
                         OdometerDisplay(state.stats.totalTracked,vehicle.odometerUnit)
-                        Text("${state.stats.readingCount} readings · all time",style=MaterialTheme.typography.bodySmall,
+                        Text("${state.stats.readingCount} trips · all time",style=MaterialTheme.typography.bodySmall,
                             color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.78f))
                     }
                 }
