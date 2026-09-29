@@ -4,27 +4,37 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobgain.triprabbit.core.designsystem.component.*
+import com.jacobgain.triprabbit.core.model.VEHICLE_NAME_MAX_LENGTH
 import com.jacobgain.triprabbit.core.util.*
 import kotlinx.coroutines.flow.collectLatest
 import java.time.Instant
-import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.ZoneOffset
@@ -34,46 +44,57 @@ import java.time.format.DateTimeFormatter
 fun AddReadingScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: AddReadingViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.effects.collectLatest { if (it is ReadingEffect.Saved) onSaved(it.message) } }
-    AddReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, viewModel::nameChanged, viewModel::timeChanged, viewModel::startValueChanged)
+    AddReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, viewModel::nameChanged, viewModel::timeChanged, viewModel::startValueChanged, { viewModel.save(inProgress = true) }, viewModel::selectVehicle)
 }
 
 @Composable
 fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue: (String) -> Unit = {},
-    onDate: (Instant) -> Unit = {}, onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}, onStart: (String) -> Unit = {}) {
+    onDate: (Instant) -> Unit = {}, onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}, onStart: (String) -> Unit = {}, onStartTrip: () -> Unit = {}, onSelectVehicle: (Long) -> Unit = {}) {
     var dateText by rememberSaveable { mutableStateOf(state.recordedAt.inputDate()) }
     var editingOdometer by rememberSaveable { mutableStateOf<String?>(null) }
+    var vehicleMenuExpanded by remember { mutableStateOf(false) }
     val dateValid = if (state.hasTime) dateText.parseDateTime() != null else dateText.parseInputDate() != null
+    val nameValid = state.name.isNotBlank()
     val unit = state.vehicle?.odometerUnit?.abbreviation.orEmpty()
     val startPlaceholder = state.previous?.value?.toString().orEmpty()
     val finishPlaceholder = state.startValue.ifBlank { startPlaceholder }
-    if (editingOdometer == "start") OdometerEditorDialog("Edit start odometer", state.startValue, startPlaceholder, unit, { editingOdometer = null }, { onStart(it); editingOdometer = null })
-    if (editingOdometer == "finish") OdometerEditorDialog("Edit finish odometer", state.value, finishPlaceholder, unit, { editingOdometer = null }, { onValue(it); editingOdometer = null })
     Scaffold(topBar = { DetailTopBar("Add Trip", onBack) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            PageHeading("Add trip", "Record a business trip for ${state.vehicle?.name.orEmpty()}.")
-            SectionCard {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(AppIcon.Car, accented = true)
-                    Column(Modifier.weight(1f)) {
-                        Text(state.vehicle?.name ?: "Loading vehicle…", style = MaterialTheme.typography.titleMedium)
-                        Text("${state.previous?.value?.grouped() ?: "—"} ${state.vehicle?.odometerUnit?.abbreviation.orEmpty()} · previous reading",
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        AdaptiveSingleLineText(state.vehicle?.name ?: "Loading vehicle…", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                        AdaptiveSingleLineText("Previous reading: ${state.previous?.value?.grouped() ?: "—"} ${state.vehicle?.odometerUnit?.abbreviation.orEmpty()}",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (state.vehicles.size > 1) Box {
+                        TextButton(onClick = { vehicleMenuExpanded = true }) { Text("Change vehicle", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        DropdownMenu(expanded = vehicleMenuExpanded, onDismissRequest = { vehicleMenuExpanded = false }) {
+                            state.vehicles.forEach { car -> DropdownMenuItem(
+                                text = { Text(car.name, maxLines = 1) },
+                                onClick = { vehicleMenuExpanded = false; onSelectVehicle(car.id) },
+                            ) }
+                        }
                     }
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SectionTitle("Odometer", "Enter the start and finish shown on your dashboard.")
+                SectionTitle("Odometer")
                 OdometerEditButton("Start odometer", state.startValue, startPlaceholder, unit, !state.saving) { editingOdometer = "start" }
+                if (editingOdometer == "start") OdometerEditor("Edit start odometer", state.startValue, startPlaceholder, unit, { editingOdometer = null }, { onStart(it); editingOdometer = null })
                 OdometerEditButton("Finish odometer", state.value, finishPlaceholder, unit, !state.saving) { editingOdometer = "finish" }
+                if (editingOdometer == "finish") OdometerEditor("Edit finish odometer", state.value, finishPlaceholder, unit, { editingOdometer = null }, { onValue(it); editingOdometer = null })
                 val entered = state.value.toLongOrNull()
                 val previous = state.previous
                 val start = state.startValue.toLongOrNull() ?: previous?.value
                 if (entered != null && start != null && entered >= start)
                     InlineMessage("${(entered - start).grouped()} ${state.vehicle?.odometerUnit?.abbreviation} travelled")
             }
-            SectionCard {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 SectionTitle("Trip details")
-                FormField(state.name, onName, "Trip name (optional)", hint = "For example, 123 Main Street", enabled = !state.saving)
+                FormField(state.name, onName, "Trip name", hint = "Required", enabled = !state.saving)
                 ReadingDateTimeField(dateText, { dateText = it; (if (state.hasTime) it.parseDateTime() else it.parseInputDate())?.let(onDate) }, state.hasTime, { enabled ->
                     dateText = if (enabled) (dateText.parseInputDate() ?: state.recordedAt).inputDateTime() else (dateText.parseDateTime() ?: state.recordedAt).inputDate()
                     onTime(enabled); (if (enabled) dateText.parseDateTime() else dateText.parseInputDate())?.let(onDate)
@@ -81,9 +102,28 @@ fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue
                 FormField(state.note, onNote, "Note (optional)", singleLine = false, enabled = !state.saving)
             }
             state.error?.let { InlineMessage(it, error = true) }
-            PrimaryAction("Save Trip", onSave, icon = AppIcon.Check, enabled = dateValid && state.vehicle != null, busy = state.saving)
-            Text("Saved privately on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(onClick = onStartTrip, enabled = !state.saving && state.vehicle != null && dateValid && nameValid && editingOdometer == null && !state.hasInProgressTrip,
+                    modifier = Modifier.fillMaxWidth()) { Text("Finish later") }
+                Text(if (state.hasInProgressTrip) "Finish your in-progress trip before starting another." else "Save the starting odometer now, and finish this trip later.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                PrimaryAction("Save Trip", onSave, icon = AppIcon.Check, enabled = dateValid && state.vehicle != null && nameValid && editingOdometer == null && !state.hasInProgressTrip, busy = state.saving)
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (state.hasInProgressTrip) {
+                        Text("Finish your in-progress trip before saving another", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    } else {
+                        Text("Save the start and finish odometers.", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text("You can edit this trip later.", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
+            }
         }
     }
 }
@@ -91,106 +131,125 @@ fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue
 @Composable
 fun ReadingHistoryScreen(onBack: (() -> Unit)?, onAdd: (Long) -> Unit, onEdit: (Long) -> Unit, viewModel: ReadingHistoryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ReadingHistoryContent(state, onBack, onAdd, onEdit, viewModel::selectVehicle)
+    ReadingHistoryContent(state, onBack, onAdd, onEdit)
 }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = null, onAdd: (Long) -> Unit = {}, onEdit: (Long) -> Unit = {}, onSelectVehicle: (Long) -> Unit = {}) {
-    var filter by rememberSaveable { mutableStateOf("All Trips") }
+fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = null, onAdd: (Long) -> Unit = {}, onEdit: (Long) -> Unit = {}) {
+    var selectedVehicleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var selectedTrip by remember { mutableStateOf<ReadingItem?>(null) }
-    var vehicleMenuExpanded by remember { mutableStateOf(false) }
-    val thisMonth = YearMonth.now()
-    val trips = state.items.filter { it.difference != null || it.reading.startValue != null }
-    val filtered = trips.filter { item ->
-        val matchesFilter = when (filter) {
-            "This Month" -> YearMonth.from(item.reading.recordedAt.atZone(ZoneId.systemDefault())) == thisMonth
-            else -> true
+    LaunchedEffect(state.loading, state.vehicles.map { it.id }) {
+        if (!state.loading && selectedVehicleId != null && state.vehicles.none { it.id == selectedVehicleId }) {
+            selectedVehicleId = null
         }
-        matchesFilter && (query.isBlank() || listOf(item.reading.value.toString(), item.reading.value.grouped(),
-            item.reading.name.orEmpty(), item.reading.note.orEmpty(), item.reading.recordedAt.displayDate()).any { it.contains(query, ignoreCase = true) })
     }
-    val unit = state.vehicle?.odometerUnit?.abbreviation.orEmpty()
+    val trips = state.items.filter { it.reading.inProgress || it.difference != null || it.reading.startValue != null }
+    val filtered = trips.filter { item ->
+        val matchesVehicle = selectedVehicleId == null || item.reading.vehicleId == selectedVehicleId
+        matchesVehicle && (query.isBlank() || listOf(item.reading.value.toString(), item.reading.value.grouped(),
+            item.reading.name.orEmpty(), item.reading.note.orEmpty(), item.vehicleName.orEmpty(), item.reading.recordedAt.displayDate()).any { it.contains(query, ignoreCase = true) })
+    }
+    val pinned = if (state.pinInProgressTrips) filtered.filter { it.reading.inProgress } else emptyList()
+    val regular = if (state.pinInProgressTrips) filtered.filterNot { it.reading.inProgress } else filtered
     selectedTrip?.let { item ->
         Dialog(onDismissRequest = { selectedTrip = null }) {
             Surface(Modifier.fillMaxWidth().widthIn(max = 520.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
               Column(Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                PageHeading(item.reading.name?.takeIf { it.isNotBlank() } ?: "Trip details", state.vehicle?.name.orEmpty(), action = { IconButton(onClick = { selectedTrip = null }) { TripIcon(AppIcon.Close, "Close") } })
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.reading.name?.takeIf { it.isNotBlank() } ?: "Trip details", style = MaterialTheme.typography.headlineSmall)
+                        Text(item.vehicleName ?: state.vehicle?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = { selectedTrip = null }) { TripIcon(AppIcon.Close, "Close") }
+                }
                 Text(if (item.reading.hasTime) item.reading.recordedAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d · h:mm a")) else item.reading.recordedAt.displayDate(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SectionCard {
                     SectionTitle("Odometer")
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        val tripStart = item.reading.startValue ?: item.difference?.let { item.reading.value - it }
-                        Column { Text("Start", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${tripStart?.grouped() ?: "—"} $unit", style = MaterialTheme.typography.titleMedium) }
-                        Column(horizontalAlignment = Alignment.End) { Text("Finish", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${item.reading.value.grouped()} $unit", style = MaterialTheme.typography.titleMedium) }
-                    }
-                    Text("${item.difference?.grouped() ?: "—"} $unit travelled", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    val tripStart = item.reading.startValue ?: item.difference?.let { item.reading.value - it }
+                    AdaptivePair(
+                        first = { Column(it) { Text("Start", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); AdaptiveSingleLineText("${tripStart?.grouped() ?: "—"} ${item.unit.ifBlank { state.vehicle?.odometerUnit?.abbreviation.orEmpty() }}", style = MaterialTheme.typography.titleMedium, minFontSize = 12.sp) } },
+                        second = { Column(it) {
+                            Text("Finish", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            AdaptiveSingleLineText(if (item.reading.inProgress) "In progress" else "${item.reading.value.grouped()} ${item.unit.ifBlank { state.vehicle?.odometerUnit?.abbreviation.orEmpty() }}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = if (item.reading.inProgress) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                minFontSize = 12.sp)
+                        } },
+                    )
+                    if (!item.reading.inProgress) AdaptiveSingleLineText("${item.difference?.grouped() ?: "—"} ${item.unit.ifBlank { state.vehicle?.odometerUnit?.abbreviation.orEmpty() }} travelled",
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, minFontSize = 12.sp)
                 }
                 item.reading.note?.takeIf { it.isNotBlank() }?.let { SectionCard { SectionTitle("Note"); Text(it, style = MaterialTheme.typography.bodyMedium) } }
-                PrimaryAction("Edit trip", { val id = item.reading.id; selectedTrip = null; onEdit(id) }, icon = AppIcon.Edit)
+                PrimaryAction(if (item.reading.inProgress) "Finish trip" else "Edit trip", { val id = item.reading.id; selectedTrip = null; onEdit(id) }, icon = AppIcon.Edit)
+                TextButton(onClick = { selectedTrip = null }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
               }
             }
         }
     }
     Scaffold(topBar = { if (onBack != null) DetailTopBar("Trips", onBack) }) { padding ->
         if (state.loading) { LoadingState(Modifier.padding(padding)); return@Scaffold }
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 24.dp, 20.dp, 100.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { PageHeading("Trips", "", action = {
-                if (state.vehicles.isNotEmpty()) Box {
-                    OutlinedButton(onClick = { vehicleMenuExpanded = true }, shape = MaterialTheme.shapes.medium) {
-                        Text(state.vehicle?.name ?: "Choose car", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.width(4.dp)); TripIcon(AppIcon.Down, modifier = Modifier.size(18.dp))
-                    }
-                    DropdownMenu(expanded = vehicleMenuExpanded, onDismissRequest = { vehicleMenuExpanded = false }) {
-                        state.vehicles.forEach { car -> DropdownMenuItem(text = { Text(car.name, maxLines = 1) }, onClick = { vehicleMenuExpanded = false; onSelectVehicle(car.id) }) }
-                    }
-                }
-            }) }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp, 24.dp, 20.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { PageHeading("Trips", "") }
             item {
-                OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search trips", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().clearFocusWhenKeyboardCloses(), placeholder = { Text("Search trips", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingIcon = { TripIcon(AppIcon.Search) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { TripIcon(AppIcon.Close, "Clear search") } },
                     singleLine = true, shape = MaterialTheme.shapes.medium,
                     colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface, focusedContainerColor = MaterialTheme.colorScheme.surface))
             }
             item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("All Trips", "This Month").forEach { label ->
-                    FilterChip(selected = filter == label, onClick = { filter = label }, label = { Text(label) }, shape = MaterialTheme.shapes.medium,
-                        leadingIcon = if (filter == label) ({ TripIcon(AppIcon.Check, modifier = Modifier.size(16.dp)) }) else null)
+                FilterChip(selected = selectedVehicleId == null, onClick = { selectedVehicleId = null }, label = { Text("All Vehicles") }, shape = MaterialTheme.shapes.medium,
+                    leadingIcon = if (selectedVehicleId == null) ({ TripIcon(AppIcon.Check, modifier = Modifier.size(16.dp)) }) else null)
+                state.vehicles.forEach { car ->
+                    FilterChip(selected = selectedVehicleId == car.id, onClick = { selectedVehicleId = car.id },
+                        label = { Text(car.name.take(VEHICLE_NAME_MAX_LENGTH), maxLines = 1, overflow = TextOverflow.Ellipsis) }, shape = MaterialTheme.shapes.medium,
+                        leadingIcon = if (selectedVehicleId == car.id) ({ TripIcon(AppIcon.Check, modifier = Modifier.size(16.dp)) }) else null)
                 }
             } }
-            item {
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
-                    Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        TripIcon(AppIcon.Distance, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("${filtered.sumOf { it.difference ?: 0 }.grouped()} $unit", style = MaterialTheme.typography.headlineMedium)
-                            Text("Recorded distance · ${filtered.size} trips", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
+            if (pinned.isNotEmpty()) {
+                item {
+                    Text("In progress", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                }
+                items(pinned, key = { it.reading.id }) { item ->
+                    TripHistoryCard(item, state.pinInProgressTrips, state.vehicle?.odometerUnit?.abbreviation.orEmpty()) { selectedTrip = item }
                 }
             }
             if (filtered.isEmpty()) item {
-                EmptyState(if (trips.isEmpty()) "A fresh start" else "No matching trips",
-                    if (state.items.isEmpty()) "Your trips will appear here as you log your mileage." else "Try a different search or switch to All Trips.")
+                val noTripsYet = trips.isEmpty()
+                EmptyState(if (noTripsYet) "No trips yet" else "No matching trips",
+                    if (noTripsYet) "Create your first trip and it will appear here." else "Try a different search or switch to All Vehicles.")
             }
-            itemsIndexed(filtered, key = { _, item -> item.reading.id }) { index, item ->
-                if (index == 0 || filtered[index - 1].reading.recordedAt.displayMonth() != item.reading.recordedAt.displayMonth()) {
+            itemsIndexed(regular, key = { _, item -> item.reading.id }) { index, item ->
+                if (index == 0 || regular[index - 1].reading.recordedAt.displayMonth() != item.reading.recordedAt.displayMonth()) {
                     Text(item.reading.recordedAt.displayMonth(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp))
                 }
-                Surface(onClick = { selectedTrip = item }, color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(item.reading.name?.takeIf { it.isNotBlank() } ?: "Untitled trip", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${item.difference?.grouped() ?: "—"} $unit", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                            TripIcon(AppIcon.Chevron, "Trip details", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        }
-                        Text("${item.reading.recordedAt.displayDate()} · ${state.vehicle?.name.orEmpty()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+                TripHistoryCard(item, state.pinInProgressTrips, state.vehicle?.odometerUnit?.abbreviation.orEmpty()) { selectedTrip = item }
             }
+        }
+    }
+}
+
+@Composable
+private fun TripHistoryCard(item: ReadingItem, showPinned: Boolean, fallbackUnit: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(item.reading.name?.takeIf { it.isNotBlank() } ?: "Untitled trip", style = MaterialTheme.typography.titleMedium)
+                Text("${item.vehicleName?.take(VEHICLE_NAME_MAX_LENGTH)?.takeIf { it.isNotBlank() }?.let { "$it · " }.orEmpty()}${item.reading.recordedAt.displayDate()}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            }
+            if (item.reading.inProgress) Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (showPinned) TripIcon(AppIcon.Pin, "Pinned", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Text("In progress", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            } else Text("${item.difference?.grouped() ?: "—"}${(item.unit.ifBlank { fallbackUnit }).takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()}",
+                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            TripIcon(AppIcon.Chevron, "Trip details", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -199,29 +258,28 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
 fun EditReadingScreen(onBack: () -> Unit, onSaved: (String) -> Unit, viewModel: EditReadingViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.effects.collectLatest { if (it is ReadingEffect.Saved) onSaved(it.message) } }
-    EditReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, { viewModel.delete() }, viewModel::nameChanged, viewModel::timeChanged, viewModel::startValueChanged)
+    EditReadingContent(state, onBack, viewModel::valueChanged, viewModel::dateChanged, viewModel::noteChanged, { viewModel.save() }, { viewModel.delete() }, viewModel::nameChanged, viewModel::timeChanged, viewModel::startValueChanged, viewModel::saveInProgress)
 }
 
 @Composable
 fun EditReadingContent(state: EditReadingUiState, onBack: () -> Unit = {}, onValue: (String) -> Unit = {}, onDate: (Instant) -> Unit = {},
-    onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onDelete: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}, onStart: (String) -> Unit = {}) {
+    onNote: (String) -> Unit = {}, onSave: () -> Unit = {}, onDelete: () -> Unit = {}, onName: (String) -> Unit = {}, onTime: (Boolean) -> Unit = {}, onStart: (String) -> Unit = {}, onKeepInProgress: () -> Unit = {}) {
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var editingOdometer by rememberSaveable { mutableStateOf<String?>(null) }
     var dateText by rememberSaveable(state.reading?.id) { mutableStateOf(if (state.hasTime) state.recordedAt.inputDateTime() else state.recordedAt.inputDate()) }
-    if (editingOdometer == "start") OdometerEditorDialog("Edit start odometer", state.startValue, state.startValue, state.unit, { editingOdometer = null }, { onStart(it); editingOdometer = null })
-    if (editingOdometer == "finish") OdometerEditorDialog("Edit finish odometer", state.value, state.value, state.unit, { editingOdometer = null }, { onValue(it); editingOdometer = null })
     if (confirmDelete) DestructiveConfirmationDialog("Delete this trip?", "This removes the trip and its odometer reading from your history. This cannot be undone.",
         { confirmDelete = false; onDelete() }, { confirmDelete = false })
-    Scaffold(topBar = { DetailTopBar("Edit Trip", onBack) }) { padding ->
+    Scaffold(topBar = { DetailTopBar(if (state.reading?.inProgress == true) "Finish trip" else "Edit Trip", onBack) }) { padding ->
         if (state.loading) LoadingState(Modifier.padding(padding))
         else if (state.reading == null) Box(Modifier.padding(padding)) { EmptyState("Reading not found", "It may have already been deleted.", "Go Back", onBack) }
         else Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            PageHeading("Edit trip", "")
-            SectionCard {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SectionTitle("Odometer readings")
                 OdometerEditButton("Start odometer", state.startValue, state.startValue, state.unit, !state.saving) { editingOdometer = "start" }
+                if (editingOdometer == "start") OdometerEditor("Edit start odometer", state.startValue, state.startValue, state.unit, { editingOdometer = null }, { onStart(it); editingOdometer = null })
                 OdometerEditButton("Finish odometer", state.value, state.value, state.unit, !state.saving) { editingOdometer = "finish" }
-                FormField(state.name, onName, "Trip name (optional)", enabled = !state.saving)
+                if (editingOdometer == "finish") OdometerEditor("Edit finish odometer", state.value, state.value, state.unit, { editingOdometer = null }, { onValue(it); editingOdometer = null })
+                FormField(state.name, onName, "Trip name", hint = "Required", enabled = !state.saving)
                 ReadingDateTimeField(dateText, { dateText = it; (if (state.hasTime) it.parseDateTime() else it.parseInputDate())?.let(onDate) }, state.hasTime, { enabled ->
                     dateText = if (enabled) (dateText.parseInputDate() ?: state.recordedAt).inputDateTime() else (dateText.parseDateTime() ?: state.recordedAt).inputDate()
                     onTime(enabled); (if (enabled) dateText.parseDateTime() else dateText.parseInputDate())?.let(onDate)
@@ -229,8 +287,17 @@ fun EditReadingContent(state: EditReadingUiState, onBack: () -> Unit = {}, onVal
                 FormField(state.note, onNote, "Note (optional)", singleLine = false, enabled = !state.saving)
             }
             state.error?.let { InlineMessage(it, error = true) }
-            PrimaryAction("Save Changes", onSave, icon = AppIcon.Check, enabled = (if (state.hasTime) dateText.parseDateTime() else dateText.parseInputDate()) != null, busy = state.saving)
-            SectionCard {
+            val actionsEnabled = !state.saving && state.name.isNotBlank() && editingOdometer == null &&
+                (if (state.hasTime) dateText.parseDateTime() else dateText.parseInputDate()) != null
+            if (state.reading.inProgress) {
+                OutlinedButton(onClick = onKeepInProgress, enabled = actionsEnabled,
+                    modifier = Modifier.fillMaxWidth()) { Text("Keep in progress") }
+                PrimaryAction("Finish trip", onSave, icon = AppIcon.Check, enabled = actionsEnabled, busy = state.saving)
+            } else {
+                PrimaryAction("Save Changes", onSave, icon = AppIcon.Check, enabled = actionsEnabled, busy = state.saving)
+            }
+            Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 ActionRow("Delete Trip", "Permanently remove this trip.", AppIcon.Trash,
                     onClick = { if (state.confirmDeletion) confirmDelete = true else onDelete() }, enabled = !state.saving, destructive = true)
             }
@@ -240,49 +307,78 @@ fun EditReadingContent(state: EditReadingUiState, onBack: () -> Unit = {}, onVal
 
 @Composable
 private fun OdometerEditButton(label: String, value: String, placeholder: String, unit: String, enabled: Boolean, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp), shape = MaterialTheme.shapes.medium,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${(value.ifBlank { placeholder }).toLongOrNull()?.grouped() ?: "Enter odometer"} $unit", style = MaterialTheme.typography.titleLarge)
+    Surface(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text((value.ifBlank { placeholder }).toLongOrNull()?.grouped() ?: "Enter odometer", style = MaterialTheme.typography.headlineSmall)
+                Text(unit, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            TripIcon(AppIcon.Edit, "Edit $label", tint = MaterialTheme.colorScheme.primary)
         }
-        TripIcon(AppIcon.Edit, "Edit $label")
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OdometerEditorDialog(title: String, value: String, placeholder: String, unit: String, onDismiss: () -> Unit, onApply: (String) -> Unit) {
-    var working by remember(value, placeholder) { mutableStateOf(value) }
-    val displayed = working.toLongOrNull() ?: placeholder.toLongOrNull() ?: 0L
-    val digits = displayed.toString()
-    val focusRequesters = remember(digits.length) { List(digits.length) { androidx.compose.ui.focus.FocusRequester() } }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (unit.isBlank()) "Tap a digit to type, or use + and −." else "${unit} · Tap a digit to type, or use + and −.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                digits.forEachIndexed { index, digit ->
-                    val place = Math.pow(10.0, (digits.length - index - 1).toDouble()).toLong()
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { working = (displayed + place).toString() }, modifier = Modifier.size(36.dp)) { Text("+", style = MaterialTheme.typography.titleMedium) }
-                        OutlinedTextField(value = digit.toString(), onValueChange = { entered ->
-                            val cleaned = entered.filter(Char::isDigit)
-                            val next = if (cleaned.length > 1 && cleaned.startsWith(digit)) cleaned.drop(1) else cleaned
-                            if (next.isNotEmpty()) {
-                                val chars = digits.toCharArray()
-                                next.forEachIndexed { offset, char -> if (index + offset < chars.size) chars[index + offset] = char }
-                                working = chars.concatToString()
-                                if (next.length == 1 && index < focusRequesters.lastIndex) focusRequesters[index + 1].requestFocus()
+private fun OdometerEditor(title: String, value: String, placeholder: String, unit: String, onDismiss: () -> Unit, onApply: (String) -> Unit) {
+    var working by remember(value, placeholder) { mutableStateOf(value.ifBlank { placeholder }) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val availableWidth = maxWidth
+            val availableHeight = maxHeight
+            Surface(
+                Modifier.fillMaxWidth(.94f).widthIn(max = 520.dp).heightIn(max = availableHeight * .9f),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+            ) {
+                Column(
+                    Modifier.imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(title, style = MaterialTheme.typography.titleLarge)
+                    FormField(working, { working = it.filter(Char::isDigit).take(18) }, "Odometer reading", placeholder = placeholder,
+                        suffix = unit, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    Text("Type the reading or adjust individual digits.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val digits = working.ifBlank { "0" }.padStart(6, '0')
+                    val columns = minOf(digits.length, 6)
+                    val cellWidth = ((availableWidth * .94f - 40.dp) / columns).coerceAtMost(48.dp)
+                    FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        digits.forEachIndexed { index, digit ->
+                            fun changeDigit(delta: Int) {
+                                val changed = digits.toCharArray()
+                                changed[index] = ('0'.code + (digit.digitToInt() + delta + 10) % 10).toChar()
+                                working = changed.concatToString().trimStart('0').ifEmpty { "0" }
                             }
-                        }, modifier = Modifier.width(42.dp).height(58.dp).focusRequester(focusRequesters[index]),
-                            singleLine = true, textStyle = MaterialTheme.typography.titleLarge.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = MaterialTheme.shapes.small)
-                        IconButton(onClick = { working = (displayed - place).coerceAtLeast(0).toString() }, modifier = Modifier.size(36.dp)) { Text("−", style = MaterialTheme.typography.titleMedium) }
+                            Column(Modifier.width(cellWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.fillMaxWidth().height(36.dp).clickable(role = Role.Button,
+                                    onClickLabel = "Increase digit ${index + 1}", onClick = { changeDigit(1) })
+                                    .semantics { contentDescription = "Increase digit ${index + 1}" }, contentAlignment = Alignment.Center) {
+                                    Text("+", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text(digit.toString(), style = if (cellWidth >= 42.dp) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium)
+                                Box(Modifier.fillMaxWidth().height(36.dp).clickable(role = Role.Button,
+                                    onClickLabel = "Decrease digit ${index + 1}", onClick = { changeDigit(-1) })
+                                    .semantics { contentDescription = "Decrease digit ${index + 1}" }, contentAlignment = Alignment.Center) {
+                                    Text("−", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
                     }
+                    PrimaryAction("Apply", { onApply(working.ifBlank { placeholder }) }, icon = AppIcon.Check)
+                    TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
                 }
             }
         }
-    }, confirmButton = { TextButton(onClick = { onApply(working) }) { Text("Apply") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -317,7 +413,7 @@ private fun ReadingDateTimeField(value: String, onValue: (String) -> Unit, hasTi
         Text("Include time", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Switch(hasTime, onCheckedChange = onTime, enabled = enabled)
     }
-    OutlinedTextField(value, onValue, modifier = Modifier.fillMaxWidth(), label = { Text(if (hasTime) "Date and time" else "Date") },
+    OutlinedTextField(value, onValue, modifier = Modifier.fillMaxWidth().clearFocusWhenKeyboardCloses(), label = { Text(if (hasTime) "Date and time" else "Date") },
         supportingText = { Text(if (hasTime) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd") },
         isError = !valid, enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.medium,
         colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant),
