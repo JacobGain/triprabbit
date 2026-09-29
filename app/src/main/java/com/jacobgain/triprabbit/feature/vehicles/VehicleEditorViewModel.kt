@@ -37,11 +37,13 @@ class VehicleEditorViewModel @Inject constructor(
     init { if (vehicleId != null) viewModelScope.launch {
         repository.observeVehicle(vehicleId).filterNotNull().first().also { v ->
             original = v
-            _state.value = VehicleEditorUiState(name=v.name, make=v.make.orEmpty(), model=v.model.orEmpty(), year=v.year?.toString().orEmpty(), licensePlate=v.licensePlate.orEmpty(), unit=v.odometerUnit, colorKey=v.colorKey.orEmpty(), notes=v.notes.orEmpty(), editing=true)
+            _state.value = VehicleEditorUiState(name=v.name.take(VEHICLE_NAME_MAX_LENGTH), make=v.make.orEmpty(), model=v.model.orEmpty(), year=v.year?.toString().orEmpty(), licensePlate=v.licensePlate.orEmpty(), unit=v.odometerUnit, colorKey=v.colorKey.orEmpty(), notes=v.notes.orEmpty(), editing=true)
         }
     } }
 
-    fun update(transform: (VehicleEditorUiState) -> VehicleEditorUiState) { _state.update(transform) }
+    fun update(transform: (VehicleEditorUiState) -> VehicleEditorUiState) {
+        _state.update { current -> transform(current).let { it.copy(name = it.name.take(VEHICLE_NAME_MAX_LENGTH)) } }
+    }
     fun save() { viewModelScope.launch {
         val s = _state.value
         val year = s.year.takeIf { it.isNotBlank() }?.toIntOrNull()
@@ -52,9 +54,18 @@ class VehicleEditorViewModel @Inject constructor(
         runCatching {
             if (s.editing) {
                 val old = requireNotNull(original)
-                repository.updateVehicle(old.copy(name=s.name.trim(), make=s.make.blankNull(), model=s.model.blankNull(), year=year, licensePlate=s.licensePlate.blankNull(), colorKey=s.colorKey.blankNull(), notes=s.notes.blankNull()))
+                repository.updateVehicle(old.copy(name=s.name.trim().take(VEHICLE_NAME_MAX_LENGTH), make=s.make.blankNull(), model=s.model.blankNull(), year=year, licensePlate=s.licensePlate.blankNull(), colorKey=s.colorKey.blankNull(), notes=s.notes.blankNull()))
                 old.id
-            } else createVehicle(VehicleInput(s.name, s.make.blankNull(), s.model.blankNull(), year, odometerUnit=s.unit), requireNotNull(initial), Instant.now())
+             } else createVehicle(VehicleInput(
+                name = s.name.trim().take(VEHICLE_NAME_MAX_LENGTH),
+                make = s.make.blankNull(),
+                model = s.model.blankNull(),
+                year = year,
+                licensePlate = s.licensePlate.blankNull(),
+                odometerUnit = s.unit,
+                colorKey = s.colorKey.blankNull(),
+                notes = s.notes.blankNull(),
+            ), requireNotNull(initial), Instant.now())
         }.onSuccess { _effects.send(VehicleEditorEffect.Saved(it)) }.onFailure { e -> _state.update { it.copy(saving=false, error=e.message ?: "Couldn't save the vehicle. Try again.") } }
     } }
 }

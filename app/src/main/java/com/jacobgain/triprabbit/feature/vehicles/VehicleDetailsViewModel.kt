@@ -32,7 +32,6 @@ class VehicleDetailsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VehicleDetailsUiState())
     private val _gone = Channel<Unit>(Channel.BUFFERED)
     val gone = _gone.receiveAsFlow()
-    fun archive() = remove("Couldn't archive the vehicle. Try again.") { vehicles.archiveVehicle(id) }
     fun delete() = remove("Couldn't delete the vehicle. Try again.") { vehicles.deleteVehicle(id) }
     fun clearError() { actionState.update { it.copy(second = null) } }
 
