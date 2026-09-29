@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
@@ -47,9 +48,14 @@ class UiOverhaulTest {
     }
     private val stats = com.jacobgain.triprabbit.core.usecase.CalculateMileageStatsUseCase()(readings, now)
     private val dashboard = DashboardUiState(false, vehicle, readings, stats, listOf(vehicle))
-    private val history = ReadingHistoryUiState(false, vehicle, readings.mapIndexed { index, r -> ReadingItem(r, readings.getOrNull(index + 1)?.let { r.value - it.value }) })
+    private val history = ReadingHistoryUiState(false, vehicle, readings.mapIndexed { index, r -> ReadingItem(r, readings.getOrNull(index + 1)?.let { r.value - it.value }) }, vehicles = listOf(vehicle))
 
     private fun render(dark: Boolean = false, fontScale: Float = 1f, tab: String? = null, content: @Composable () -> Unit) {
+        // Dialogs create their own window density, so also set the Android resource configuration.
+        val resources = compose.activity.resources
+        val configuration = android.content.res.Configuration(resources.configuration).apply { this.fontScale = fontScale }
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(configuration, resources.displayMetrics)
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, fontScale)) {
                 TripRabbitTheme(AppSettings(themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)) {
@@ -69,7 +75,13 @@ class UiOverhaulTest {
         val target = File("build/reports/ui/$name.png")
         target.parentFile?.mkdirs()
         compose.runOnIdle {
-            val view = compose.activity.window.decorView
+            // Dialogs own a separate window; draw the front window rather than the activity behind it.
+            val managerClass = Class.forName("android.view.WindowManagerGlobal")
+            val manager = managerClass.getDeclaredMethod("getInstance").invoke(null)
+            @Suppress("UNCHECKED_CAST")
+            val views = managerClass.getDeclaredField("mViews").apply { isAccessible = true }.get(manager) as List<android.view.View>
+            val view = views.lastOrNull { it.visibility == android.view.View.VISIBLE && it.width > 0 && it.height > 0 }
+                ?: compose.activity.window.decorView
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             view.draw(android.graphics.Canvas(bitmap))
             target.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -90,15 +102,30 @@ class UiOverhaulTest {
         assertNotEquals(Color(0xFFF6F7F3), background)
     }
 
+    @Test fun extremeAccentsRemainReadable() {
+        var accent by mutableStateOf(0xFFFFFF)
+        var dark by mutableStateOf(false)
+        var palette: ColorScheme? = null
+        compose.setContent { TripRabbitTheme(AppSettings(accentColor = accent, themeMode = if (dark) ThemeMode.DARK else ThemeMode.LIGHT)) { palette = MaterialTheme.colorScheme } }
+        fun contrast(a: Color, b: Color) = (maxOf(a.luminance(), b.luminance()) + .05f) / (minOf(a.luminance(), b.luminance()) + .05f)
+        for (mode in listOf(false, true)) for (rgb in listOf(0xFFFFFF, 0x000000, 0xFFFF00, 0x0000FF, 0xFF0000, 0x00FF00)) {
+            compose.runOnIdle { dark = mode; accent = rgb }
+            compose.waitForIdle()
+            val colors = checkNotNull(palette)
+            assertTrue(contrast(colors.primary, colors.surface) >= 4.5f)
+            assertTrue(contrast(colors.primary, colors.onPrimary) >= 4.5f)
+        }
+    }
+
     @Test fun dashboardLight() {
         var added: Long? = null
         render(tab = "home") { DashboardContent(dashboard, onAdd = { added = it }) }
         capture("dashboard-light")
-        compose.onNodeWithText("Add Reading").performClick()
+        compose.onNodeWithText("Add Trip").performClick()
         assertEquals(1L, added)
         compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
         capture("dashboard-artwork-slot")
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Recent readings"))
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Recent trips"))
         capture("dashboard-activity")
     }
 
@@ -106,22 +133,99 @@ class UiOverhaulTest {
 
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun dashboardLargeText() {
         render(fontScale = 1.6f, tab = "home") { DashboardContent(dashboard) }
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Add Reading"))
-        compose.onNodeWithText("Add Reading").assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Add Trip"))
+        compose.onNodeWithText("Add Trip").assertIsDisplayed()
         capture("dashboard-large-text")
     }
 
     @Test fun historySearchAndFilters() {
         render(tab = "history") { ReadingHistoryContent(history) }
+        compose.onNodeWithText("All Vehicles").assertIsSelected()
+        compose.onNodeWithText("All Trips").assertDoesNotExist()
+        compose.onNodeWithText("This Month").assertDoesNotExist()
         capture("history-light")
-        compose.onNodeWithText("With Notes").performClick()
-        compose.onNodeWithText("Weekend away").assertIsDisplayed()
-        compose.onNodeWithText("124,850 km").assertDoesNotExist()
-        compose.onNode(hasSetTextAction()).performTextInput("no match")
-        compose.onNodeWithText("No matching readings").assertIsDisplayed()
+        compose.onNode(hasSetTextAction()).performTextInput("Weekend")
+        compose.onNodeWithText("132 km").assertExists()
+        compose.onNode(hasSetTextAction()).performTextReplacement("no match")
+        compose.onNodeWithText("No matching trips").assertExists()
         capture("history-empty-search")
         compose.onNodeWithContentDescription("Clear search").performClick()
-        compose.onNodeWithText("Weekend away").assertIsDisplayed()
+        compose.onNodeWithText("No matching trips").assertDoesNotExist()
+    }
+
+    @Test fun allVehiclesFilterCanNarrowTripsByCarAndKeepsEachUnit() {
+        val workTruck = vehicle.copy(id = 2, name = "Work truck", odometerUnit = DistanceUnit.MILES)
+        val commute = readings.first().copy(name = "Commute")
+        val siteVisit = readings[1].copy(id = 100, vehicleId = workTruck.id, name = "Site visit", value = 9_000, startValue = 8_950)
+        val state = ReadingHistoryUiState(false, vehicle,
+            listOf(ReadingItem(commute, 138, vehicle.name, vehicle.odometerUnit.abbreviation),
+                ReadingItem(siteVisit, 50, workTruck.name, workTruck.odometerUnit.abbreviation)),
+            vehicles = listOf(vehicle, workTruck))
+        render(tab = "history") { ReadingHistoryContent(state) }
+        compose.onNodeWithText("All Vehicles").assertIsSelected()
+        compose.onNodeWithText("Commute").assertExists()
+        compose.onNodeWithText("Site visit").assertExists()
+        compose.onNodeWithText("50 mi").assertExists()
+        compose.onNode(hasText("Work truck", substring = false) and hasClickAction()).performClick()
+        compose.onNodeWithText("Site visit").assertExists()
+        compose.onNodeWithText("Commute").assertDoesNotExist()
+        compose.onNodeWithText("All Vehicles").performClick().assertIsSelected()
+        compose.onNodeWithText("Commute").assertExists()
+        compose.onNodeWithText("Site visit").assertExists()
+    }
+
+    @Test fun activeTripDisablesBothNewTripActions() {
+        val blocked = AddReadingUiState(vehicle = vehicle, previous = readings.first(), name = "Another trip",
+            value = "124900", recordedAt = now, hasInProgressTrip = true)
+        render { AddReadingContent(blocked) }
+        compose.onNodeWithText("Finish later").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Save Trip").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Finish your in-progress trip before saving another").performScrollTo().assertExists()
+    }
+
+    @Test fun finishingTripKeepsCreationActionOrderAndLabels() {
+        var keptInProgress = 0
+        var finished = 0
+        val pending = readings.first().copy(inProgress = true, startValue = readings.first().value, name = "Client visit")
+        render {
+            EditReadingContent(EditReadingUiState(loading = false, reading = pending, startValue = pending.value.toString(),
+                value = pending.value.toString(), recordedAt = now, name = "Client visit", unit = "km"),
+                onSave = { finished++ }, onKeepInProgress = { keptInProgress++ })
+        }
+        val keepNode = compose.onNodeWithText("Keep in progress")
+        val finishNode = compose.onNode(hasText("Finish trip", substring = false) and hasClickAction())
+        assertTrue(keepNode.fetchSemanticsNode().boundsInRoot.top < finishNode.fetchSemanticsNode().boundsInRoot.top)
+        keepNode.performClick()
+        finishNode.performClick()
+        assertEquals(1, keptInProgress)
+        assertEquals(1, finished)
+    }
+
+    @Test fun reportGraphsCanBeHiddenWithoutHidingExport() {
+        render(tab = "reports") {
+            StatisticsContent(StatisticsUiState(false, vehicle, readings, stats, showGraphs = false))
+        }
+        compose.onNodeWithText("Distance by month").assertDoesNotExist()
+        compose.onNodeWithText("Your week").assertDoesNotExist()
+        compose.onNodeWithText("Total distance tracked").assertExists()
+        compose.onNodeWithText("Export PDF").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun pendingTripAndCloseControls() {
+        val pending = readings.first().copy(inProgress = true, startValue = 124850, value = 124850, name = "Client visit")
+        var opened = 0L
+        render(tab = "history") { ReadingHistoryContent(history.copy(items = listOf(ReadingItem(pending, null))), onEdit = { opened = it }) }
+        capture("trip-in-progress")
+        compose.onNodeWithText("In progress").assertIsDisplayed()
+        compose.onNodeWithText("Client visit").performClick()
+        capture("trip-in-progress-details")
+        compose.onNodeWithText("Close").performClick()
+        compose.onNodeWithText("Finish trip").assertDoesNotExist()
+        compose.onNodeWithText("Client visit").performClick()
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithText("Client visit").performClick()
+        compose.onNodeWithText("Finish trip").performClick()
+        assertEquals(pending.id, opened)
     }
 
     @Test fun historyDark() { render(dark = true, tab = "history") { ReadingHistoryContent(history) }; capture("history-dark") }
@@ -134,18 +238,81 @@ class UiOverhaulTest {
         capture("reports-export")
     }
 
+    @Test fun reportsCanSwitchTheAggregatedDisplayUnit() {
+        render(tab = "reports") {
+            var unit by remember { mutableStateOf(DistanceUnit.KILOMETERS) }
+            StatisticsContent(StatisticsUiState(false, vehicle, readings, stats, vehicles = listOf(vehicle), displayUnit = unit),
+                onSelectUnit = { unit = it })
+        }
+        compose.onNodeWithText("km", substring = false).assertIsSelected()
+        compose.onNodeWithText("mi", substring = false).performClick().assertIsSelected()
+        compose.onNodeWithText("km", substring = false).assertIsNotSelected()
+    }
+
+    @Test fun reportsVehicleSelectorLivesInExportSectionAndIncludesAllVehicles() {
+        val workTruck = vehicle.copy(id = 2, name = "Work truck")
+        render(tab = "reports") {
+            StatisticsContent(StatisticsUiState(false, vehicle, readings, stats, vehicles = listOf(vehicle, workTruck)))
+        }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Export PDF"))
+        compose.onNodeWithText("Export trip data").assertIsDisplayed()
+        compose.onNodeWithText("Choose vehicles and a date range").assertIsDisplayed()
+        compose.onNodeWithText("All Vehicles").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Daily driver").assertIsDisplayed()
+        compose.onNodeWithText("Work truck").assertIsDisplayed()
+    }
+
     @Test fun reportsDark() { render(dark = true, tab = "reports") { StatisticsContent(StatisticsUiState(false, vehicle, readings, stats)) }; capture("reports-dark") }
 
+    @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun reportsLargeTextAndExports() {
+        var pdfExports = 0
+        var csvExports = 0
+        render(fontScale = 2f, tab = "reports") {
+            StatisticsContent(StatisticsUiState(false, vehicle, readings, stats),
+                onExport = { csvExports++ }, onExportPdf = { pdfExports++ })
+        }
+        capture("reports-large-text")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Export PDF"))
+        compose.onNodeWithText("Export PDF").performClick()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Export CSV"))
+        compose.onNodeWithText("Export CSV").performClick()
+        assertEquals(1, pdfExports)
+        assertEquals(1, csvExports)
+        capture("reports-export-large-text")
+    }
+
     @Test fun addReading() {
-        render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), value = "124980", recordedAt = now)) }
+        render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), value = "124980", name = "New trip", recordedAt = now)) }
         capture("add-reading")
-        compose.onNodeWithText("Save Reading").performScrollTo().assertIsEnabled()
+        compose.onNodeWithText("Save Trip").performScrollTo().assertIsEnabled()
+    }
+
+    @Test fun odometerEditorAcceptsFullValue() {
+        var value = ""
+        render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), recordedAt = now), onValue = { value = it }) }
+        compose.onNodeWithText("Finish odometer").performScrollTo().performClick()
+        capture("odometer-editor")
+        compose.onNodeWithText("Odometer reading").performScrollTo().performTextReplacement("125000")
+        compose.onNodeWithText("Apply").performScrollTo().performClick()
+        assertEquals("125000", value)
+    }
+
+    @Test fun odometerDigitsChangeIndependently() {
+        var applied = ""
+        render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), recordedAt = now), onValue = { applied = it }) }
+        compose.onNodeWithText("Finish odometer").performClick()
+        compose.onNodeWithText("Odometer reading").assertTextContains("124850")
+        compose.onNodeWithContentDescription("Increase digit 4").performScrollTo().performClick()
+        compose.onNodeWithText("Odometer reading").assertTextContains("124950")
+        compose.onNodeWithContentDescription("Decrease digit 5").performScrollTo().performClick()
+        compose.onNodeWithText("Apply").performScrollTo().performClick()
+        assertEquals("124940", applied)
     }
 
     @Test fun invalidDateDisablesSave() {
         render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), value = "124980", recordedAt = now)) }
         compose.onNodeWithText(now.inputDate()).performTextReplacement("not a date")
-        compose.onNodeWithText("Save Reading").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Save Trip").performScrollTo().assertIsNotEnabled()
     }
 
     @Test fun datePickerUpdatesTheReadingWithoutRequiringTime() {
@@ -158,9 +325,9 @@ class UiOverhaulTest {
 
     @Test fun editReadingRequiresConfirmation() {
         var deleted = false
-        render { EditReadingContent(EditReadingUiState(false, readings.first(), "124850", now), onDelete = { deleted = true }) }
+        render { EditReadingContent(EditReadingUiState(loading = false, reading = readings.first(), value = "124850", recordedAt = now), onDelete = { deleted = true }) }
         capture("edit-reading")
-        compose.onNodeWithText("Delete Reading").performScrollTo().performClick()
+        compose.onNodeWithText("Delete Trip").performScrollTo().performClick()
         assertFalse(deleted)
         compose.onNodeWithText("Delete").performClick()
         assertTrue(deleted)
@@ -168,8 +335,8 @@ class UiOverhaulTest {
 
     @Test fun editReadingHonoursDeletionPreference() {
         var deleted = false
-        render { EditReadingContent(EditReadingUiState(false, readings.first(), "124850", now, confirmDeletion = false), onDelete = { deleted = true }) }
-        compose.onNodeWithText("Delete Reading").performScrollTo().performClick()
+        render { EditReadingContent(EditReadingUiState(loading = false, reading = readings.first(), value = "124850", recordedAt = now, confirmDeletion = false), onDelete = { deleted = true }) }
+        compose.onNodeWithText("Delete Trip").performScrollTo().performClick()
         assertTrue(deleted)
     }
 
@@ -178,19 +345,36 @@ class UiOverhaulTest {
     @Test fun vehicleEditor() { render { VehicleEditorContent(VehicleEditorUiState(name = "Daily driver", initialReading = "124850")) }; capture("create-vehicle") }
 
     @Test fun garage() {
-        render { VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car", make = "Mazda", model = "MX-5")), 1,
-            mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMFORTABLE, {}, {}, {}, {}) }
+        render(tab = "vehicles") { VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car", make = "Mazda", model = "MX-5")),
+            mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMFORTABLE, {}, {}, {}) }
         capture("vehicles")
     }
 
+    @Test fun garageDetailsAndAddActions() {
+        var opened = 0L
+        var added = false
+        render(dark = true, tab = "vehicles") {
+            VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car")),
+                mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMFORTABLE,
+                { opened = it }, { added = true })
+        }
+        capture("vehicles-dark")
+        compose.onNodeWithText("Make current").assertDoesNotExist()
+        compose.onNodeWithText("Current vehicle").assertDoesNotExist()
+        compose.onAllNodesWithText("Vehicle details").onLast().performClick()
+        assertEquals(2L, opened)
+        compose.onNodeWithText("Add vehicle").performClick()
+        assertTrue(added)
+    }
+
     @Test fun compactGarageUsesShortRows() {
-        render { VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car")), 1,
-            mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMPACT, {}, {}, {}, {}) }
+        render(tab = "vehicles") { VehicleListScreen(listOf(vehicle, vehicle.copy(id = 2, name = "Weekend car")),
+            mapOf(1L to 124850L, 2L to 32800L), DisplayDensity.COMPACT, {}, {}, {}) }
         capture("vehicles-compact")
         compose.onNodeWithText("Daily driver").assertIsDisplayed()
         compose.onNodeWithText("124,850 km").assertIsDisplayed()
         compose.onNodeWithText("Vehicle details").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Current vehicle").assertExists()
+        compose.onNodeWithContentDescription("Current vehicle").assertDoesNotExist()
     }
 
     @Test fun vehicleDetails() { render { VehicleDetailsContent(VehicleDetailsUiState(false, vehicle, readings)) }; capture("vehicle-details") }
@@ -213,7 +397,7 @@ class UiOverhaulTest {
             .performSemanticsAction(SemanticsActions.SetProgress) { it(100f) }
         compose.runOnIdle { assertNull(chosen) }
         compose.onNodeWithText("Apply").performClick()
-        compose.runOnIdle { assertEquals(0x646B53, chosen) }
+        compose.runOnIdle { assertEquals(0x646B58, chosen) }
     }
 
     @Test fun privacy() { render { PrivacyPolicyScreen {} }; capture("privacy") }
@@ -226,11 +410,11 @@ class UiOverhaulTest {
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun formLargeText() {
         render(fontScale = 2f) { AddReadingContent(AddReadingUiState(vehicle, readings.first(), recordedAt = now)) }
         capture("add-reading-large-text")
-        compose.onNodeWithText("Save Reading").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Save Trip").performScrollTo().assertIsDisplayed()
     }
 
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun garageLargeText() {
-        render(fontScale = 2f) { VehicleListScreen(listOf(vehicle), 1, mapOf(1L to 124850L), DisplayDensity.COMFORTABLE, {}, {}, {}) }
+        render(fontScale = 2f) { VehicleListScreen(listOf(vehicle), mapOf(1L to 124850L), DisplayDensity.COMFORTABLE, {}, {}, {}) }
         capture("vehicles-large-text")
     }
 
@@ -263,7 +447,7 @@ class UiOverhaulTest {
             var current by remember { mutableStateOf("home") }
             Scaffold(bottomBar = { AppNavigation(current) { current = it } }) { padding -> Box(Modifier.padding(padding)) }
         }
-        compose.onNodeWithText("History").performClick().assertIsSelected()
+        compose.onNodeWithText("Trips").performClick().assertIsSelected()
         compose.onNodeWithText("Reports").performClick().assertIsSelected()
     }
 
@@ -277,6 +461,46 @@ class UiOverhaulTest {
             }
         } }
         capture("icon-family")
+    }
+
+    @Test @Config(qualifiers = "w800dp-h360dp-mdpi") fun landscapeTrips() {
+        render(tab = "history") { ReadingHistoryContent(history) }
+        compose.onNodeWithContentDescription("Add trip").assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(4)
+        capture("landscape-trips")
+    }
+
+    @Test @Config(qualifiers = "w800dp-h360dp-mdpi") fun landscapeForm() {
+        render { AddReadingContent(AddReadingUiState(vehicle, readings.first(), recordedAt = now)) }
+        compose.onNodeWithText("Save Trip").performScrollTo().assertIsDisplayed()
+        capture("landscape-form")
+    }
+
+    @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun tripsLargeText() {
+        render(fontScale = 2f, tab = "history") { ReadingHistoryContent(history.copy(vehicles = listOf(vehicle))) }
+        compose.onNodeWithContentDescription("Add trip").assertIsDisplayed()
+        capture("trips-large-text")
+    }
+
+    @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun compactGarageLargeText() {
+        render(fontScale = 2f, tab = "vehicles") { VehicleListScreen(listOf(vehicle.copy(name = "A long vehicle name for the family")),
+            mapOf(1L to 124850L), DisplayDensity.COMPACT, {}, {}) }
+        capture("compact-garage-large-text")
+    }
+
+    @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun tripDetailsLargeText() {
+        render(fontScale = 2f, tab = "history") { ReadingHistoryContent(history) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Untitled trip"))
+        compose.onAllNodesWithText("Untitled trip").onFirst().performClick()
+        compose.onNodeWithText("Edit trip").performScrollTo().assertIsDisplayed()
+        capture("trip-details-large-text")
+    }
+
+    @Test @Config(qualifiers = "w840dp-h1100dp-mdpi") fun tabletReports() {
+        render(tab = "reports") { StatisticsContent(StatisticsUiState(false, vehicle, readings, stats)) }
+        capture("tablet-reports")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Export PDF"))
+        compose.onNodeWithText("Export PDF").assertIsDisplayed()
     }
 
     private fun Instant.inputDate(): String = atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
