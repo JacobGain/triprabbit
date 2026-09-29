@@ -33,7 +33,26 @@ class EditReadingViewModel @Inject constructor(savedState: SavedStateHandle, pri
     fun nameChanged(v: String) { _state.update { it.copy(name=v) } }
     fun timeChanged(v: Boolean) { _state.update { it.copy(hasTime=v) } }
     fun dateChanged(v: Instant) { _state.update { it.copy(recordedAt=v, error=null) } }
-    fun save() = viewModelScope.launch { val s=_state.value; val value=s.value.toLongOrNull(); if(value==null){_state.update{it.copy(error="Enter a valid odometer reading.")};return@launch}; _state.update{it.copy(saving=true)}; runCatching { editReading(id,value,s.recordedAt,s.note,s.name,s.hasTime) }.onSuccess { _effects.send(ReadingEffect.Saved("Reading updated")) }.onFailure { e->_state.update{it.copy(saving=false,error=e.message ?: "Couldn't save the reading. Try again.")} } }
+    fun save() = persist(inProgress = false)
+    fun saveInProgress() = persist(inProgress = true)
+    private fun persist(inProgress: Boolean) = viewModelScope.launch {
+        val s = _state.value
+        if (s.name.isBlank()) { _state.update { it.copy(error = "Trip name is required.") }; return@launch }
+        val start = s.startValue.toLongOrNull()
+        val value = if (inProgress) start else s.value.toLongOrNull()
+        if (value == null) { _state.update { it.copy(error = "Enter a valid odometer reading.") }; return@launch }
+        _state.update { it.copy(saving = true, error = null) }
+        runCatching { editReading(id, value, s.recordedAt, s.note, s.name, s.hasTime, start, inProgress) }
+            .onSuccess {
+                val message = when {
+                    inProgress -> "Trip kept in progress"
+                    s.reading?.inProgress == true -> "Trip finished"
+                    else -> "Reading updated"
+                }
+                _effects.send(ReadingEffect.Saved(message))
+            }
+            .onFailure { e -> _state.update { it.copy(saving = false, error = e.message ?: "Couldn't save the reading. Try again.") } }
+    }
     fun delete() = viewModelScope.launch {
         _state.update{it.copy(saving=true,error=null)}
         runCatching{repository.deleteReading(id)}

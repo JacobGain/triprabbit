@@ -8,6 +8,7 @@ sealed class ReadingError(message: String) : IllegalArgumentException(message) {
     data class AboveNext(val value: Long) : ReadingError("This reading is higher than the next reading of $value.")
     data object VehicleMissing : ReadingError("The vehicle no longer exists.")
     data object ReadingMissing : ReadingError("The reading no longer exists.")
+    data object TripAlreadyInProgress : ReadingError("Finish or remove the in-progress trip before creating another trip.")
 }
 
 object ReadingValidator {

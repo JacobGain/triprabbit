@@ -48,4 +48,5 @@ data class OdometerReadingEntity(
     val name: String? = null,
     @ColumnInfo(name = "has_time", defaultValue = "1") val hasTime: Boolean = true,
     @ColumnInfo(name = "start_value") val startValue: Long? = null,
+    @ColumnInfo(name = "in_progress", defaultValue = "0") val inProgress: Boolean = false,
 )

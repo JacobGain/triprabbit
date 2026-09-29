@@ -2,6 +2,8 @@ package com.jacobgain.triprabbit.core.model
 
 import java.time.Instant
 
+const val VEHICLE_NAME_MAX_LENGTH = 25
+
 enum class DistanceUnit(val abbreviation: String) { KILOMETERS("km"), MILES("mi") }
 
 data class Vehicle(
@@ -29,6 +31,7 @@ data class OdometerReading(
     val name: String? = null,
     val hasTime: Boolean = false,
     val startValue: Long? = null,
+    val inProgress: Boolean = false,
 )
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -36,11 +39,14 @@ enum class DisplayDensity { COMFORTABLE, COMPACT }
 
 data class AppSettings(
     val selectedVehicleId: Long? = null,
+    val lastUsedTripVehicleId: Long? = null,
     val firstLaunchComplete: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val displayDensity: DisplayDensity = DisplayDensity.COMFORTABLE,
     val showVehicleDetails: Boolean = true,
     val confirmReadingDeletion: Boolean = true,
+    val pinInProgressTrips: Boolean = true,
+    val showReportGraphs: Boolean = true,
     val accentColor: Int? = null,
 )
 

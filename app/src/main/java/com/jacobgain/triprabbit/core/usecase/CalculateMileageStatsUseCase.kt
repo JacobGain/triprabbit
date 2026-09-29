@@ -11,7 +11,7 @@ import kotlin.math.roundToLong
 
 class CalculateMileageStatsUseCase @Inject constructor() {
     operator fun invoke(readings: List<OdometerReading>, now: Instant = Instant.now()): MileageStats {
-        val sorted = readings.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
+        val sorted = readings.filterNot { it.inProgress }.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
         if (sorted.isEmpty()) return MileageStats()
         val first = sorted.first(); val latest = sorted.last()
         val cutoff = now.minus(30, ChronoUnit.DAYS)

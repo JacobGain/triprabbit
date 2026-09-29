@@ -28,10 +28,13 @@ class ReadingMigrationTest {
         raw.execSQL("INSERT INTO odometer_readings(id,vehicle_id,value,recorded_at,created_at) VALUES(1,1,1000,10000,0)")
         raw.version = 1
         raw.close()
-        val db = Room.databaseBuilder(context, TripRabbitDatabase::class.java, name).addMigrations(MIGRATION_1_2).build()
+        val db = Room.databaseBuilder(context, TripRabbitDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
         try {
             val reading = db.odometerReadingDao().getAll().single()
             assertEquals(1000, reading.value)
+            assertNull(reading.startValue)
+            assertFalse(reading.inProgress)
+            assertEquals(java.time.Instant.ofEpochMilli(10000), reading.recordedAt)
             assertNull(reading.name)
             assertTrue(reading.hasTime)
         } finally {

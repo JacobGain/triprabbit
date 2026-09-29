@@ -11,7 +11,7 @@ import com.jacobgain.triprabbit.core.database.dao.VehicleDao
 import com.jacobgain.triprabbit.core.database.entity.OdometerReadingEntity
 import com.jacobgain.triprabbit.core.database.entity.VehicleEntity
 
-@Database(entities = [VehicleEntity::class, OdometerReadingEntity::class], version = 3, exportSchema = true)
+@Database(entities = [VehicleEntity::class, OdometerReadingEntity::class], version = 4, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class TripRabbitDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
@@ -28,5 +28,11 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE odometer_readings ADD COLUMN start_value INTEGER")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE odometer_readings ADD COLUMN in_progress INTEGER NOT NULL DEFAULT 0")
     }
 }

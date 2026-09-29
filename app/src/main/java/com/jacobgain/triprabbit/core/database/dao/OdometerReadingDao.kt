@@ -10,7 +10,7 @@ interface OdometerReadingDao {
     @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId ORDER BY recorded_at DESC, id DESC")
     fun observeForVehicle(vehicleId: Long): Flow<List<OdometerReadingEntity>>
 
-    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId ORDER BY recorded_at DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND in_progress = 0 ORDER BY recorded_at DESC, id DESC LIMIT 1")
     fun observeLatest(vehicleId: Long): Flow<OdometerReadingEntity?>
 
     @Query("SELECT * FROM odometer_readings WHERE id = :id")
@@ -18,12 +18,14 @@ interface OdometerReadingDao {
 
     @Query("SELECT * FROM odometer_readings WHERE id = :id")
     suspend fun getById(id: Long): OdometerReadingEntity?
+    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND in_progress = 1 AND id != :excludingId ORDER BY recorded_at DESC, id DESC LIMIT 1")
+    suspend fun getInProgress(vehicleId: Long, excludingId: Long = -1): OdometerReadingEntity?
     @Query("SELECT * FROM odometer_readings ORDER BY recorded_at ASC, id ASC") suspend fun getAll(): List<OdometerReadingEntity>
 
-    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND recorded_at <= :at AND id != :excludeId ORDER BY recorded_at DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND in_progress = 0 AND recorded_at <= :at AND id != :excludeId ORDER BY recorded_at DESC, id DESC LIMIT 1")
     suspend fun previous(vehicleId: Long, at: Instant, excludeId: Long = -1): OdometerReadingEntity?
 
-    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND recorded_at > :at AND id != :excludeId ORDER BY recorded_at ASC, id ASC LIMIT 1")
+    @Query("SELECT * FROM odometer_readings WHERE vehicle_id = :vehicleId AND in_progress = 0 AND recorded_at > :at AND id != :excludeId ORDER BY recorded_at ASC, id ASC LIMIT 1")
     suspend fun next(vehicleId: Long, at: Instant, excludeId: Long = -1): OdometerReadingEntity?
 
     @Insert suspend fun insert(reading: OdometerReadingEntity): Long

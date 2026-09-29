@@ -21,7 +21,6 @@ class VehicleRepositoryImpl @Inject constructor(private val dao: VehicleDao) : V
     override suspend fun getVehicle(id: Long) = dao.getById(id)?.toDomain()
     override suspend fun createVehicle(input: VehicleInput, createdAt: Instant) = dao.insert(input.toEntity(createdAt))
     override suspend fun updateVehicle(vehicle: Vehicle) = dao.update(vehicle.toEntity())
-    override suspend fun archiveVehicle(id: Long) = dao.archive(id, Instant.now())
     override suspend fun deleteVehicle(id: Long) = dao.delete(id)
 }
 
@@ -31,10 +30,11 @@ class OdometerRepositoryImpl @Inject constructor(private val dao: OdometerReadin
     override fun observeLatestReading(vehicleId: Long) = dao.observeLatest(vehicleId).map { it?.toDomain() }
     override fun observeReading(id: Long) = dao.observeById(id).map { it?.toDomain() }
     override suspend fun getReading(id: Long) = dao.getById(id)?.toDomain()
+    override suspend fun getInProgressReading(vehicleId: Long, excludingId: Long) = dao.getInProgress(vehicleId, excludingId)?.toDomain()
     override suspend fun surrounding(vehicleId: Long, at: Instant, excludingId: Long) =
         dao.previous(vehicleId, at, excludingId)?.toDomain() to dao.next(vehicleId, at, excludingId)?.toDomain()
-    override suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String?, hasTime: Boolean, startValue: Long?) =
-        dao.insert(OdometerReadingEntity(vehicleId = vehicleId, value = value, recordedAt = recordedAt, note = note, createdAt = createdAt, updatedAt = null, name = name, hasTime = hasTime, startValue = startValue))
+    override suspend fun addReading(vehicleId: Long, value: Long, recordedAt: Instant, note: String?, createdAt: Instant, name: String?, hasTime: Boolean, startValue: Long?, inProgress: Boolean) =
+        dao.insert(OdometerReadingEntity(vehicleId = vehicleId, value = value, recordedAt = recordedAt, note = note, createdAt = createdAt, updatedAt = null, name = name, hasTime = hasTime, startValue = startValue, inProgress = inProgress))
     override suspend fun updateReading(reading: OdometerReading) = dao.update(reading.toEntity())
     override suspend fun deleteReading(id: Long) = dao.delete(id)
 }
@@ -43,10 +43,13 @@ class OdometerRepositoryImpl @Inject constructor(private val dao: OdometerReadin
 class SettingsRepositoryImpl @Inject constructor(private val dataSource: AppPreferencesDataSource) : SettingsRepository {
     override fun observeSettings(): Flow<AppSettings> = dataSource.settings
     override suspend fun setSelectedVehicle(id: Long?) = dataSource.setSelectedVehicle(id)
+    override suspend fun setLastUsedTripVehicle(id: Long?) = dataSource.setLastUsedTripVehicle(id)
     override suspend fun setFirstLaunchComplete(complete: Boolean) = dataSource.setFirstLaunchComplete(complete)
     override suspend fun setThemeMode(value: ThemeMode) = dataSource.updateAppearance(themeMode = value)
     override suspend fun setDisplayDensity(value: DisplayDensity) = dataSource.updateAppearance(density = value)
     override suspend fun setConfirmReadingDeletion(value: Boolean) = dataSource.setConfirmReadingDeletion(value)
+    override suspend fun setPinInProgressTrips(value: Boolean) = dataSource.setPinInProgressTrips(value)
+    override suspend fun setShowReportGraphs(value: Boolean) = dataSource.setShowReportGraphs(value)
     override suspend fun setAccentColor(value: Int?) = dataSource.setAccentColor(value)
 }
 
@@ -57,5 +60,5 @@ private fun VehicleInput.toEntity(now: Instant) = VehicleEntity(
 )
 
 private fun Vehicle.toEntity() = VehicleEntity(id, name.trim(), make.clean(), model.clean(), year, licensePlate.clean(), odometerUnit, colorKey.clean(), notes.clean(), createdAt, archivedAt)
-private fun OdometerReading.toEntity() = OdometerReadingEntity(id, vehicleId, value, recordedAt, note.clean(), createdAt, updatedAt, name.clean(), hasTime, startValue)
+private fun OdometerReading.toEntity() = OdometerReadingEntity(id, vehicleId, value, recordedAt, note.clean(), createdAt, updatedAt, name.clean(), hasTime, startValue, inProgress)
 private fun String?.clean() = this?.trim()?.takeIf(String::isNotEmpty)
