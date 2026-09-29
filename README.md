@@ -4,10 +4,11 @@ A simple, private odometer history app for Android.
 
 ## Implemented features
 
-- Create, edit, archive, delete, and switch between vehicles
+- Create, edit, and delete vehicles with separate odometer histories
 - Store independent odometer histories for multiple vehicles
-- Add, edit, and delete dated readings with optional trip names, notes, and times
-- Persist vehicles and readings with Room and the current selection with DataStore
+- Add, edit, and delete dated trips with names, notes, and optional times
+- Start a trip with its starting odometer and finish it later; unfinished trips stay out of mileage reports
+- Persist vehicles and readings with Room and app preferences with DataStore
 - Dashboard mileage summaries, recent activity, and a history chart
 - Detailed tracked, 30-day, annual, and monthly statistics
 - System/light/dark appearance modes, custom RGB accent colour, and garage density controls
@@ -24,13 +25,13 @@ TripRabbit is fully local and requests no dangerous Android permissions.
 The Compose UI uses a customizable colour palette, custom rabbit
 artwork, and a consistent outline control icon family. Onboarding, dashboard,
 history, reports, forms, vehicles, settings, and privacy share typography,
-surfaces, controls, and light/dark palettes. Home /
-History / Reports / Settings navigation keeps the main destinations close.
+surfaces, controls, and light/dark palettes. Trips / Reports / Add / Garage /
+Settings navigation keeps the main destinations close.
 
-Vehicle management is available from Home and the vehicle selector. History
-supports search and All Readings / This Month / With Notes filters; Reports
-includes date-range CSV and PDF export. Reading forms use dates by default, with optional times.
-The selected accent colour is used in both appearance modes. The installed PNG artwork is documented in
+Vehicle management is available from Garage. Trips supports search and vehicle
+filters; Reports supports distance-unit selection and date-range CSV/PDF export
+for the selected vehicle or all vehicles. The selected accent colour is used in
+both appearance modes. The installed PNG artwork is documented in
 [UI assets](docs/ui-assets.md).
 
 The mockup's GPS trip tracking, business/personal classification, and tax

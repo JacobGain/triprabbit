@@ -2,8 +2,13 @@
 .gradle/
 .idea/
 local.properties
-build/
-*/build/
+**/build/
+.kotlin/
+**/.kotlin/
+.cxx/
+**/.cxx/
+.externalNativeBuild/
+**/.externalNativeBuild/
 captures/
 .DS_Store
 # Local release artifacts and signing material
