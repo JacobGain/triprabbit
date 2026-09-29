@@ -26,7 +26,6 @@ class DashboardViewModel @Inject constructor(
         .flatMapLatest { (selected, active) ->
             val vehicle = active.firstOrNull { it.id == selected } ?: active.firstOrNull()
             if (vehicle == null) flowOf(DashboardUiState(false, vehicles = active))
-            else readings.observeReadings(vehicle.id).map { history -> DashboardUiState(false, vehicle, history, calculateStats(history), active) }
+            else readings.observeReadings(vehicle.id).map { history -> DashboardUiState(false, vehicle, history.filterNot { it.inProgress }, calculateStats(history), active) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
-    fun selectVehicle(id:Long){viewModelScope.launch{settings.setSelectedVehicle(id)}}
 }

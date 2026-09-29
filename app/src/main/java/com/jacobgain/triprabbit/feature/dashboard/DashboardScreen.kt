@@ -23,8 +23,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobgain.triprabbit.core.designsystem.component.*
 import com.jacobgain.triprabbit.core.model.*
 import com.jacobgain.triprabbit.core.util.*
-import com.jacobgain.triprabbit.feature.vehicles.subtitle
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
@@ -33,31 +33,14 @@ import java.util.Locale
 fun DashboardScreen(onAdd: (Long) -> Unit, onHistory: (Long) -> Unit, onManageVehicles: () -> Unit,
     onStatistics: (Long) -> Unit, viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    DashboardContent(state, onAdd, onHistory, onManageVehicles, onStatistics, viewModel::selectVehicle)
+    DashboardContent(state, onAdd, onHistory, onManageVehicles, onStatistics)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHistory: (Long) -> Unit = {},
-    onManageVehicles: () -> Unit = {}, onStatistics: (Long) -> Unit = {}, onSelect: (Long) -> Unit = {}) {
+    onManageVehicles: () -> Unit = {}, onStatistics: (Long) -> Unit = {}) {
     val vehicle = state.vehicle
-    var selectorOpen by remember { mutableStateOf(false) }
-    if (selectorOpen) ModalBottomSheet(onDismissRequest = { selectorOpen = false }) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Select vehicle", "Your mileage stays separate for each vehicle.")
-            state.vehicles.forEach { v ->
-                Surface(onClick = { onSelect(v.id); selectorOpen = false }, shape = MaterialTheme.shapes.medium,
-                    color = if (v.id == vehicle?.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TripIcon(AppIcon.Car)
-                        Column(Modifier.weight(1f)) { Text(v.name, style = MaterialTheme.typography.titleMedium); v.subtitle()?.let { Text(it, style = MaterialTheme.typography.bodySmall) } }
-                        if (v.id == vehicle?.id) TripIcon(AppIcon.Check, "Current vehicle")
-                    }
-                }
-            }
-            TextButton(onClick = { selectorOpen = false; onManageVehicles() }) { TripIcon(AppIcon.Settings); Spacer(Modifier.width(8.dp)); Text("Manage vehicles") }
-        }
-    }
     if (state.loading) { LoadingState(); return }
     if (vehicle == null) { EmptyState("No vehicle selected", "Add a vehicle to start logging mileage.", "Add vehicle", onManageVehicles); return }
     val latest = state.readings.firstOrNull()
@@ -65,55 +48,43 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
     val unit = vehicle.odometerUnit.abbreviation
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp, 16.dp, 20.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BrandHeader(Modifier.weight(1f))
-                FilledTonalButton(onClick = onManageVehicles, shape = MaterialTheme.shapes.medium) { TripIcon(AppIcon.Garage); Spacer(Modifier.width(6.dp)); Text("Garage") }
-            }
+            AdaptivePair(
+                first = { BrandHeader(it) },
+                second = { FilledTonalButton(onClick = onManageVehicles, modifier = it, shape = MaterialTheme.shapes.medium) { TripIcon(AppIcon.Garage); Spacer(Modifier.width(6.dp)); Text("Garage") } },
+            )
         }
         item {
-            Surface(onClick = { selectorOpen = true }, shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
+            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(AppIcon.Car, accented = true)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("CURRENT VEHICLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("VEHICLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(vehicle.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    TripIcon(AppIcon.Down, "Select vehicle")
                 }
             }
         }
         item {
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary) {
-                Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("CURRENT ODOMETER", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f), modifier = Modifier.weight(1f))
-                        TripIcon(AppIcon.Gauge, tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
-                    }
-                    if (latest != null) OdometerDisplay(latest.value, vehicle.odometerUnit) else Text("Ready for your first reading", style = MaterialTheme.typography.headlineSmall)
-                    if (latest != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TripIcon(AppIcon.Clock, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
-                        Text("Updated ${latest.recordedAt.displayDate()}", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .78f))
-                    }
-                    Button(onClick = { onAdd(vehicle.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimary,
-                            contentColor = MaterialTheme.colorScheme.primary)) {
-                        TripIcon(AppIcon.Add); Spacer(Modifier.width(8.dp)); Text("Add Trip", style = MaterialTheme.typography.labelLarge)
-                    }
-                }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionTitle("Current odometer")
+                if (latest != null) OdometerDisplay(latest.value, vehicle.odometerUnit) else Text("Ready for your first reading", style = MaterialTheme.typography.headlineSmall)
+                if (latest != null) Text("Updated ${latest.recordedAt.displayDate()}", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PrimaryAction("Add Trip", { onAdd(vehicle.id) }, icon = AppIcon.Add)
             }
         }
+        item { BrandArtworkSlot(BrandArtwork.dashboard) }
         item { AdaptivePair(
-            first = { MetricTile("Last 30 days", "${state.stats.last30Days.grouped()} $unit", it, icon = AppIcon.History) },
-            second = { MetricTile("Total tracked", "${state.stats.totalTracked.grouped()} $unit", it, icon = AppIcon.Distance) },
+            first = { MetricTile("Last 30 days", "${state.stats.last30Days.grouped()} $unit", it) },
+            second = { MetricTile("Total tracked", "${state.stats.totalTracked.grouped()} $unit", it) },
         ) }
-        item { SectionCard {
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             SectionTitle("Your week", "Distance recorded over the last 7 days", "Reports") { onStatistics(vehicle.id) }
             WeeklyMileageChart(state.readings, vehicle.odometerUnit)
         } }
-        item { SectionCard {
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             SectionTitle("Recent trips", "${state.stats.readingCount} trips in your history", "View Trips") { onHistory(vehicle.id) }
             if (state.readings.isEmpty()) Text("No recent readings.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             state.readings.take(3).forEachIndexed { index, reading ->
@@ -142,8 +113,9 @@ fun DashboardContent(state: DashboardUiState, onAdd: (Long) -> Unit = {}, onHist
 @Composable
 fun WeeklyMileageChart(readings: List<OdometerReading>, unit: DistanceUnit) {
     val today = LocalDate.now()
-    val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
-    val ordered = readings.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
+    val sunday = today.minusDays((today.dayOfWeek.value % 7).toLong())
+    val days = (0..6).map { sunday.plusDays(it.toLong()) }
+    val ordered = readings.filterNot { it.inProgress }.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
     val distances = ordered.mapIndexedNotNull { index, reading ->
         val distance = reading.startValue?.let { reading.value - it } ?: if (index == 0) null else reading.value - ordered[index - 1].value
         distance?.let { reading.recordedAt.atZone(ZoneId.systemDefault()).toLocalDate() to it }
@@ -153,19 +125,67 @@ fun WeeklyMileageChart(readings: List<OdometerReading>, unit: DistanceUnit) {
         days.forEach { day ->
             val value = distances[day] ?: 0
             Column(Modifier.weight(1f).semantics { contentDescription = "$day: $value ${unit.abbreviation}" }, horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().height(104.dp).background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(6.dp)), contentAlignment = Alignment.BottomCenter) {
-                    if (value > 0) Box(Modifier.fillMaxWidth().height((104f * value / max).coerceAtLeast(6f).dp)
+                Text("${value.grouped()} ${unit.abbreviation}", style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                    color = if (value > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth().height(84.dp).background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(6.dp)), contentAlignment = Alignment.BottomCenter) {
+                    if (value > 0) Box(Modifier.fillMaxWidth().height((84f * value / max).coerceAtLeast(6f).dp)
                         .background(if (day == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = .45f), RoundedCornerShape(6.dp)))
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(day.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()), style = MaterialTheme.typography.labelMedium,
-                    color = if (day == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1, color = if (day == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${days.sumOf { distances[it] ?: 0 }.grouped()} ${unit.abbreviation} logged", style = MaterialTheme.typography.labelLarge)
-        Text("Today · ${distances[today]?.grouped() ?: "0"} ${unit.abbreviation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    AdaptivePair(
+        first = { Text("${days.sumOf { distances[it] ?: 0 }.grouped()} ${unit.abbreviation} tracked this week", modifier = it, style = MaterialTheme.typography.labelLarge) },
+        second = { Text("Today · ${distances[today]?.grouped() ?: "0"} ${unit.abbreviation}", modifier = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+    )
+}
+
+@Composable
+fun MonthlyDistanceChart(readings: List<OdometerReading>, unit: DistanceUnit) {
+    val zone = ZoneId.systemDefault()
+    val currentMonth = YearMonth.now()
+    val months = (5 downTo 0).map { currentMonth.minusMonths(it.toLong()) }
+    val ordered = readings.filterNot { it.inProgress }
+        .sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
+    val distances = mutableMapOf<YearMonth, Long>()
+    ordered.forEachIndexed { index, reading ->
+        val previous = ordered.getOrNull(index - 1)
+        val distance = reading.startValue?.let { reading.value - it }
+            ?: previous?.let { reading.value - it.value }
+        if (distance != null && distance >= 0) {
+            val month = YearMonth.from(reading.recordedAt.atZone(zone))
+            distances[month] = (distances[month] ?: 0L) + distance
+        }
+    }
+    val values = months.map { it to (distances[it] ?: 0L) }
+    val maximum = values.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
+    Row(
+        Modifier.fillMaxWidth().semantics {
+            contentDescription = values.joinToString { (month, distance) -> "${month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${month.year}: $distance ${unit.abbreviation}" }
+        },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        values.forEach { (month, distance) ->
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${distance.grouped()} ${unit.abbreviation}", style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                    color = if (distance > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth().height(88.dp).background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.BottomCenter) {
+                    if (distance > 0) Box(Modifier.fillMaxWidth().height((88f * distance.toFloat() / maximum.toFloat()).coerceAtLeast(5f).dp)
+                        .background(if (month == currentMonth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = .48f), RoundedCornerShape(6.dp)))
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = MaterialTheme.typography.labelSmall,
+                    color = if (month == currentMonth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1)
+            }
+        }
     }
 }
 
@@ -173,7 +193,7 @@ fun WeeklyMileageChart(readings: List<OdometerReading>, unit: DistanceUnit) {
 fun MileageHistoryChart(readings: List<OdometerReading>, modifier: Modifier = Modifier) {
     val color = MaterialTheme.colorScheme.primary
     val grid = MaterialTheme.colorScheme.outlineVariant
-    val sorted = readings.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
+    val sorted = readings.filterNot { it.inProgress }.sortedWith(compareBy<OdometerReading> { it.recordedAt }.thenBy { it.id })
     val min = sorted.minOfOrNull { it.value } ?: 0
     val range = (sorted.maxOfOrNull { it.value } ?: min) - min
     Canvas(modifier.semantics { contentDescription = "Odometer history, ${readings.size} readings" }) {

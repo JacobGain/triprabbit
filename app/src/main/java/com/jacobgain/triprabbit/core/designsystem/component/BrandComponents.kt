@@ -15,19 +15,20 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jacobgain.triprabbit.R
 
 enum class AppIcon(@DrawableRes val resource: Int) {
     Home(R.drawable.ic_home), History(R.drawable.ic_history), Reports(R.drawable.ic_reports),
-    Settings(R.drawable.ic_settings), Car(R.drawable.ic_car), Garage(R.drawable.ic_garage), Add(R.drawable.ic_add),
+    Settings(R.drawable.ic_settings), Car(R.drawable.ic_car), Garage(R.drawable.ic_garage), Add(R.drawable.ic_add), AddNavigation(R.drawable.ic_add_navigation),
     Back(R.drawable.ic_back), Chevron(R.drawable.ic_chevron), Down(R.drawable.ic_down),
     Search(R.drawable.ic_search), Close(R.drawable.ic_close), Check(R.drawable.ic_check),
     Shield(R.drawable.ic_shield), Download(R.drawable.ic_download), Upload(R.drawable.ic_upload),
     Note(R.drawable.ic_note), Edit(R.drawable.ic_edit), Trash(R.drawable.ic_trash),
     Archive(R.drawable.ic_archive), Gauge(R.drawable.ic_gauge), Distance(R.drawable.ic_distance),
     Clock(R.drawable.ic_clock), Sun(R.drawable.ic_sun), Moon(R.drawable.ic_moon),
-    Device(R.drawable.ic_device), Info(R.drawable.ic_info),
+    Device(R.drawable.ic_device), Info(R.drawable.ic_info), Pin(R.drawable.ic_pin),
 }
 
 @Composable
@@ -36,16 +37,20 @@ fun TripIcon(icon: AppIcon, description: String? = null, modifier: Modifier = Mo
 }
 
 @Composable
-fun BrandMark(modifier: Modifier = Modifier) {
-    Box(modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-        Image(painterResource(R.drawable.brand_mark), null, Modifier.fillMaxSize().padding(4.dp), colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary))
+fun BrandMark(modifier: Modifier = Modifier, withBackground: Boolean = true, size: Dp = 44.dp) {
+    if (withBackground) {
+        Box(modifier.size(size).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.brand_mark), null, Modifier.fillMaxSize().padding(4.dp), colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary))
+        }
+    } else {
+        Image(painterResource(R.drawable.brand_mark), null, modifier.size(size), colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary))
     }
 }
 
 @Composable
-fun BrandHeader(modifier: Modifier = Modifier) {
+fun BrandHeader(modifier: Modifier = Modifier, withBackground: Boolean = true) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        BrandMark()
+        BrandMark(withBackground = withBackground)
         Text("TripRabbit", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
 }

@@ -41,12 +41,14 @@ private object Routes {
 @Composable
 fun TripRabbitApp(viewModel: AppViewModel = hiltViewModel()) {
     val app by viewModel.uiState.collectAsStateWithLifecycle();val nav=rememberNavController();val snackbar=remember{SnackbarHostState()};val scope=rememberCoroutineScope()
+    val defaultTripVehicleId = app.settings.lastUsedTripVehicleId?.takeIf { recent -> app.vehicles.any { it.id == recent } } ?: app.selectedVehicleId
     val entry by nav.currentBackStackEntryAsState()
     val hasBottomNavigation = entry?.destination?.route in setOf(Routes.Home, Routes.HistoryMain, Routes.Reports, Routes.Settings, Routes.Vehicles)
     val snackbarClearance = if (hasBottomNavigation) { if (LocalDensity.current.fontScale > 1.4f) 128.dp else 80.dp } else 0.dp
     fun messageAndBack(message:String){nav.popBackStack();scope.launch{snackbar.showSnackbar(message)}}
     TripRabbitTheme(app.settings) { Scaffold(snackbarHost={SnackbarHost(snackbar,Modifier.padding(bottom=snackbarClearance))}) { outer ->
-        NavHost(nav,Routes.Gate,Modifier.padding(outer).consumeWindowInsets(outer)) {
+        Box(Modifier.fillMaxSize().padding(outer).consumeWindowInsets(outer), contentAlignment = Alignment.TopCenter) {
+        NavHost(nav,Routes.Gate,Modifier.widthIn(max = 840.dp).fillMaxSize()) {
             composable(Routes.Gate){
                 when { app.loading -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
                     app.vehicles.isEmpty() -> WelcomeScreen{nav.navigate(Routes.AddVehicle)}
@@ -56,25 +58,33 @@ fun TripRabbitApp(viewModel: AppViewModel = hiltViewModel()) {
             composable(Routes.AddVehicle){VehicleEditorScreen(onSaved={
                 if (!nav.popBackStack(Routes.HistoryMain, false)) nav.navigate(Routes.HistoryMain){popUpTo(Routes.Gate){inclusive=true};launchSingleTop=true}
             },onBack={nav.popBackStack()})}
-            composable(Routes.Home){MainShell("history",nav,app.selectedVehicleId){if (app.vehicles.isEmpty()) EmptyState("No active vehicles", "Add a vehicle to start logging mileage.", "Add vehicle") { nav.navigate(Routes.AddVehicle) } else DashboardScreen(onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate(Routes.HistoryMain)},onManageVehicles={nav.navigate(Routes.Vehicles)},onStatistics={nav.navigate(Routes.Reports)})}}
-            composable(Routes.HistoryMain){MainShell("history",nav,app.selectedVehicleId){val id=app.selectedVehicleId;if(id==null)EmptyState("No vehicle selected","Choose a vehicle to view its trips.","Garage"){nav.navigate(Routes.Vehicles)}else ReadingHistoryScreen(onBack=null,onAdd={nav.navigate("add-reading/$it")},onEdit={nav.navigate("reading/$it/edit")})}}
-            composable(Routes.Vehicles){MainShell("vehicles",nav,app.selectedVehicleId){VehicleListScreen(app.vehicles,app.selectedVehicleId,app.latestReadings.mapValues{it.value.value},app.settings.displayDensity,viewModel::selectVehicle,{nav.navigate("vehicle/$it")},{nav.navigate(Routes.AddVehicle)},onBack={nav.popBackStack()})}}
-            composable(Routes.Settings){MainShell("settings",nav,app.selectedVehicleId){SettingsScreen(onMessage={message->scope.launch{snackbar.showSnackbar(message)}},onPrivacy={nav.navigate(Routes.Privacy)})}}
-            composable(Routes.Reports){MainShell("reports",nav,app.selectedVehicleId){StatisticsScreen(onBack=null,onManageVehicles={nav.navigate(Routes.Vehicles)})}}
+            composable(Routes.Home){MainShell("history",nav,defaultTripVehicleId){if (app.vehicles.isEmpty()) EmptyState("No active vehicles", "Add a vehicle to start logging mileage.", "Add vehicle") { nav.navigate(Routes.AddVehicle) } else DashboardScreen(onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate(Routes.HistoryMain)},onManageVehicles={nav.navigate(Routes.Vehicles)},onStatistics={nav.navigate(Routes.Reports)})}}
+            composable(Routes.HistoryMain){MainShell("history",nav,defaultTripVehicleId){ReadingHistoryScreen(onBack=null,onAdd={nav.navigate("add-reading/$it")},onEdit={nav.navigate("reading/$it/edit")})}}
+            composable(Routes.Vehicles){MainShell("vehicles",nav,defaultTripVehicleId){VehicleListScreen(app.vehicles,app.latestReadings.mapValues{it.value.value},app.settings.displayDensity,{nav.navigate("vehicle/$it")},{nav.navigate(Routes.AddVehicle)},onBack={nav.popBackStack()})}}
+            composable(Routes.Settings){MainShell("settings",nav,defaultTripVehicleId){SettingsScreen(onMessage={message->scope.launch{snackbar.showSnackbar(message)}},onPrivacy={nav.navigate(Routes.Privacy)})}}
+            composable(Routes.Reports){MainShell("reports",nav,defaultTripVehicleId){StatisticsScreen(onBack=null,onManageVehicles={nav.navigate(Routes.Vehicles)})}}
             composable(Routes.Privacy){PrivacyPolicyScreen(onBack={nav.popBackStack()})}
-            composable(Routes.Vehicle){VehicleDetailsScreen(onBack={nav.popBackStack()},onAdd={nav.navigate("add-reading/$it")},onHistory={viewModel.selectVehicle(it);nav.navigate(Routes.HistoryMain)},onEdit={nav.navigate("vehicle/$it/edit")},onGone={nav.navigate(Routes.Home){popUpTo(Routes.Home){inclusive=true};launchSingleTop=true}})}
+            composable(Routes.Vehicle){VehicleDetailsScreen(onBack={nav.popBackStack()},onAdd={nav.navigate("add-reading/$it")},onHistory={nav.navigate(Routes.HistoryMain)},onEdit={nav.navigate("vehicle/$it/edit")},onGone={nav.navigate(Routes.Home){popUpTo(Routes.Home){inclusive=true};launchSingleTop=true}})}
             composable(Routes.EditVehicle){VehicleEditorScreen(onSaved={nav.popBackStack()},onBack={nav.popBackStack()})}
             composable(Routes.AddReading){AddReadingScreen({nav.popBackStack()},{messageAndBack(it)})}
             composable(Routes.EditReading){EditReadingScreen({nav.popBackStack()},{messageAndBack(it)})}
         }
-    } }
+    } } }
 }
 
 @Composable
-private fun MainShell(current:String,nav:androidx.navigation.NavHostController,selectedVehicleId:Long?=null,content:@Composable () -> Unit){
+private fun MainShell(current:String,nav:androidx.navigation.NavHostController,defaultTripVehicleId:Long?=null,content:@Composable () -> Unit){
     Scaffold(bottomBar={AppNavigation(current){route->
+        val destinationRoute = when (route) {
+            "history" -> Routes.HistoryMain
+            "reports" -> Routes.Reports
+            "vehicles" -> Routes.Vehicles
+            "settings" -> Routes.Settings
+            else -> null
+        }
+        if (destinationRoute != null && nav.currentDestination?.route == destinationRoute) return@AppNavigation
         when(route) {
-            "add" -> selectedVehicleId?.let { nav.navigate("add-reading/$it") }
+            "add" -> defaultTripVehicleId?.let { nav.navigate("add-reading/$it") }
             "history" -> nav.navigate(Routes.HistoryMain){popUpTo(Routes.HistoryMain){inclusive=false};launchSingleTop=true}
             "reports" -> nav.navigate(Routes.Reports){launchSingleTop=true}
             "vehicles" -> nav.navigate(Routes.Vehicles){launchSingleTop=true}
