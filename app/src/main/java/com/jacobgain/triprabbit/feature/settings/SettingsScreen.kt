@@ -46,7 +46,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     private val local=MutableStateFlow(SettingsUiState());private var importUri:Uri?=null
     val uiState=combine(settingsRepository.observeSettings(),local){settings,state->state.copy(settings=settings)}.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5_000),SettingsUiState())
     private val _effects=Channel<SettingsEffect>(Channel.BUFFERED);val effects=_effects.receiveAsFlow()
-    fun theme(v:ThemeMode)=launch{settingsRepository.setThemeMode(v)};fun density(v:DisplayDensity)=launch{settingsRepository.setDisplayDensity(v)};fun confirmDelete(v:Boolean)=launch{settingsRepository.setConfirmReadingDeletion(v)}
+    fun theme(v:ThemeMode)=launch{settingsRepository.setThemeMode(v)};fun density(v:DisplayDensity)=launch{settingsRepository.setDisplayDensity(v)};fun confirmDelete(v:Boolean)=launch{settingsRepository.setConfirmReadingDeletion(v)};fun pinInProgressTrips(v:Boolean)=launch{settingsRepository.setPinInProgressTrips(v)};fun showReportGraphs(v:Boolean)=launch{settingsRepository.setShowReportGraphs(v)}
     fun accent(v:Int?)=launch{settingsRepository.setAccentColor(v)}
     fun export(uri:Uri)=work("Backup exported"){data.exportBackup(uri)}
     fun loadSampleData(){if(BuildConfig.DEBUG)work("Sample data loaded"){context.assets.open("sample-trip-data.json").bufferedReader().use{data.restoreBackupContent(it.readText())}}}
@@ -72,7 +72,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
     SettingsContent(state,SettingsActions(
         theme={viewModel.theme(it)},
         accent={viewModel.accent(it)},
-        density={viewModel.density(it)},confirmDelete={viewModel.confirmDelete(it)},
+        density={viewModel.density(it)},confirmDelete={viewModel.confirmDelete(it)},pinInProgressTrips={viewModel.pinInProgressTrips(it)},showReportGraphs={viewModel.showReportGraphs(it)},
         export={json.launch("triprabbit-backup.json")},restore={open.launch(arrayOf("application/json","text/plain"))},
         loadSample={confirmSample=true},
         privacy=onPrivacy,
@@ -80,7 +80,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
 }
 
 data class SettingsActions(
-    val theme:(ThemeMode)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},
+    val theme:(ThemeMode)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},val pinInProgressTrips:(Boolean)->Unit={},val showReportGraphs:(Boolean)->Unit={},
     val accent:(Int?)->Unit={},
     val export:()->Unit={},val restore:()->Unit={},val loadSample:()->Unit={},val privacy:()->Unit={},
 )
@@ -94,30 +94,38 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
     }, onDismiss = { showAccentPicker = false })
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp,24.dp,20.dp,28.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item { PageHeading("Settings", "") }
-        item { SectionCard {
-            SectionTitle("Appearance","Choose when to use the light or dark palette.")
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("Appearance")
             ChoiceRow("System", "Follow your device setting", AppIcon.Device,
                 state.settings.themeMode==ThemeMode.SYSTEM) { actions.theme(ThemeMode.SYSTEM) }
-            ChoiceRow("Light", null, AppIcon.Sun,
-                state.settings.themeMode==ThemeMode.LIGHT) { actions.theme(ThemeMode.LIGHT) }
-            ChoiceRow("Dark", null, AppIcon.Moon,
-                state.settings.themeMode==ThemeMode.DARK) { actions.theme(ThemeMode.DARK) }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            ActionRow("Change accent colour", state.settings.accentColor?.let { "#%06X".format(it and 0xFFFFFF) } ?: "Default green",
+            AdaptivePair(
+                first = { ThemePreview("Light", false, state.settings.themeMode == ThemeMode.LIGHT, it) { actions.theme(ThemeMode.LIGHT) } },
+                second = { ThemePreview("Dark", true, state.settings.themeMode == ThemeMode.DARK, it) { actions.theme(ThemeMode.DARK) } },
+            )
+            Spacer(Modifier.height(4.dp))
+            ActionRow("Change accent colour", state.settings.accentColor?.let { "#%06X".format(it and 0xFFFFFF) } ?: "TripRabbit green",
                 AppIcon.Edit, onClick = { showAccentPicker = true })
         } }
-        item { SectionCard {
-            SectionTitle("Your experience")
-            Text("Garage layout",style=MaterialTheme.typography.titleSmall)
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            SectionTitle("Garage layout")
             ChoiceRow("Comfortable", "More room for each vehicle", AppIcon.Car,
                 state.settings.displayDensity==DisplayDensity.COMFORTABLE) { actions.density(DisplayDensity.COMFORTABLE) }
             ChoiceRow("Compact", "See more vehicles at once", AppIcon.Reports,
                 state.settings.displayDensity==DisplayDensity.COMPACT) { actions.density(DisplayDensity.COMPACT) }
+        } }
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            SectionTitle("App Controls")
+            PreferenceToggle("Pin in-progress trips", "Keep unfinished trips at the top of your Trips list.", state.settings.pinInProgressTrips, actions.pinInProgressTrips)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             PreferenceToggle("Confirm before deleting","Ask before removing an odometer reading.",state.settings.confirmReadingDeletion,actions.confirmDelete)
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            PreferenceToggle("Show report graphs", "Display weekly and monthly distance graphs on the Reports page.", state.settings.showReportGraphs, actions.showReportGraphs)
         } }
-        item { SectionCard {
-            SectionTitle("Your data","Stored here. Exported only when you choose.")
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            SectionTitle("Your data")
             ActionRow("Export backup","All vehicles and readings, as JSON.",AppIcon.Download,actions.export,enabled=!state.busy)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             ActionRow("Restore backup","Replace local records from a backup.",AppIcon.Upload,actions.restore,enabled=!state.busy)
@@ -127,19 +135,44 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
             }
             if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
         } }
-        item { SectionCard {
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             SectionTitle("About")
-            BrandHeader()
+            BrandHeader(withBackground = false)
             Text("Version ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-            ActionRow("Privacy policy","Your data stays yours.",AppIcon.Shield,actions.privacy)
+            ActionRow("Privacy policy",null,AppIcon.Shield,actions.privacy)
         } }
     }
 }
 
 @Composable
+private fun ThemePreview(label: String, dark: Boolean, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val paper = if (dark) Color(0xFF0C1920) else Color(0xFFF2F6F7)
+    val ink = if (dark) Color(0xFF79E2C3) else Color(0xFF006B58)
+    Surface(modifier.selectable(selected, role = Role.RadioButton, onClick = onClick), shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = MaterialTheme.shapes.small, color = paper) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.width(44.dp).height(12.dp).background(ink, MaterialTheme.shapes.small))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(2) { Box(Modifier.weight(1f).height(16.dp).background(ink.copy(alpha = .16f), MaterialTheme.shapes.small)) }
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                if (selected) TripIcon(AppIcon.Check, "Selected", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
 private fun AccentColorDialog(value: Int?, onApply: (Int?) -> Unit, onDismiss: () -> Unit) {
-    val initial = value ?: 0x236B53
+    val initial = value ?: 0x006B58
     var red by remember { mutableIntStateOf((initial shr 16) and 255) }
     var green by remember { mutableIntStateOf((initial shr 8) and 255) }
     var blue by remember { mutableIntStateOf(initial and 255) }
@@ -184,7 +217,6 @@ private fun ChoiceRow(title: String, subtitle: String?, icon: AppIcon, selected:
         if (largeText) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(icon, accented = selected)
                     Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                     if (selected) TripIcon(AppIcon.Check, "Selected", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
@@ -194,7 +226,6 @@ private fun ChoiceRow(title: String, subtitle: String?, icon: AppIcon, selected:
         } else {
             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                IconBadge(icon, accented = selected)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall,
@@ -235,4 +266,4 @@ private fun PreferenceToggle(title:String,subtitle:String,checked:Boolean,onChec
     }
 }
 
-@Composable private fun PolicySection(title:String,body:String){SectionCard{SectionTitle(title);Text(body,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+@Composable private fun PolicySection(title:String,body:String){Column(verticalArrangement=Arrangement.spacedBy(8.dp)){SectionTitle(title);Text(body,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
