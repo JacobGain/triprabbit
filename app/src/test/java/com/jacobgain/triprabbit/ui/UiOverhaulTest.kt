@@ -127,6 +127,14 @@ class UiOverhaulTest {
         capture("vehicle-colours-and-icons")
     }
 
+    @Test fun feedbackActionIsAvailableInSettings() {
+        var opened = false
+        render { SettingsContent(SettingsUiState(), SettingsActions(feedback = { opened = true })) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Send feedback"))
+        compose.onNodeWithText("Send feedback").performClick()
+        assertTrue(opened)
+    }
+
     @Test fun customAccentChangesTheAppPalette() {
         var selected = Color.Unspecified
         var background = Color.Unspecified

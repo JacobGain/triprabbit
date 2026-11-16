@@ -61,6 +61,7 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun SettingsScreen(onMessage:(String)->Unit,onPrivacy:()->Unit,viewModel:SettingsViewModel=hiltViewModel()){
+    val context = androidx.compose.ui.platform.LocalContext.current
     val state=viewModel.uiState.collectAsStateWithLifecycle().value
     val json=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(viewModel::export)}
     val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(viewModel::inspect)}
@@ -76,13 +77,21 @@ sealed interface SettingsEffect{data class Message(val value:String):SettingsEff
         export={json.launch("triprabbit-backup.json")},restore={open.launch(arrayOf("application/json","text/plain"))},
         loadSample={confirmSample=true},
         privacy=onPrivacy,
+        feedback={
+            val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("mailto:jacob.gain04@gmail.com?subject=" + Uri.encode("TripRabbit feedback (${BuildConfig.VERSION_NAME})") +
+                    "&body=" + Uri.encode("App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\nWhat worked well or could be improved?\n\n"))
+            }
+            try { context.startActivity(intent) }
+            catch (_: android.content.ActivityNotFoundException) { onMessage("No email app available. Send feedback to jacob.gain04@gmail.com") }
+        },
     ))
 }
 
 data class SettingsActions(
     val theme:(ThemeMode)->Unit={},val density:(DisplayDensity)->Unit={},val confirmDelete:(Boolean)->Unit={},val pinInProgressTrips:(Boolean)->Unit={},val showReportGraphs:(Boolean)->Unit={},
     val accent:(Int?)->Unit={},
-    val export:()->Unit={},val restore:()->Unit={},val loadSample:()->Unit={},val privacy:()->Unit={},
+    val export:()->Unit={},val restore:()->Unit={},val loadSample:()->Unit={},val privacy:()->Unit={},val feedback:()->Unit={},
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -140,6 +149,8 @@ fun SettingsContent(state:SettingsUiState,actions:SettingsActions=SettingsAction
             SectionTitle("About")
             BrandHeader(withBackground = false)
             Text("Version ${BuildConfig.VERSION_NAME}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+            ActionRow("Send feedback", "Tell us what worked or could be improved. Opens your email app.", AppIcon.Note, actions.feedback)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             ActionRow("Privacy policy",null,AppIcon.Shield,actions.privacy)
         } }
@@ -253,14 +264,15 @@ private fun PreferenceToggle(title:String,subtitle:String,checked:Boolean,onChec
 @Composable fun PrivacyPolicyScreen(onBack:()->Unit){
     Scaffold(topBar={DetailTopBar("Privacy policy",onBack)}){padding->
         LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)){
-            item{PageHeading("TripRabbit privacy policy","Effective September 22, 2026",action={IconBadge(AppIcon.Shield,accented=true)})}
-            item{PolicySection("Summary","TripRabbit is a local odometer-history app. It has no account, advertising, analytics, network service, or automatic cloud backup. TripRabbit does not collect, transmit, sell, or share your data with the developer or third parties.")}
+            item{PageHeading("TripRabbit privacy policy","Effective November 16, 2026",action={IconBadge(AppIcon.Shield,accented=true)})}
+            item{PolicySection("Summary","TripRabbit is a local odometer-history app. It has no account, advertising, analytics, network service, or automatic cloud backup. TripRabbit does not automatically collect, transmit, sell, or share your data with the developer or third parties. You can optionally send feedback through your email app.")}
             item{PolicySection("Data you enter","TripRabbit accesses the vehicle names, trip names, odometer readings, dates, optional times, units, and notes that you enter. This data is used only on your device to provide the app’s tracking, history, backup, and statistics features.")}
             item{PolicySection("Storage and security","App data is stored in TripRabbit’s private Android app storage, which is protected by Android’s app sandbox. Android backup is disabled for TripRabbit. The app requests no dangerous permissions and has no Internet permission.")}
             item{PolicySection("Exports and restores","TripRabbit writes a JSON backup, CSV, or PDF export only when you choose a destination through Android’s system file picker. Exported files are not encrypted by TripRabbit and are then controlled by you and the storage provider you select. TripRabbit reads a backup only after you select it, validates it, asks for confirmation, and uses it to replace local app data.")}
-            item{PolicySection("Retention and deletion","Local data remains until you delete individual records, clear TripRabbit’s app data, uninstall the app, or replace the data by restoring a backup. Because the developer never receives the data, there is no server copy to delete. Files you export must be deleted from their chosen storage location separately.")}
+            item{PolicySection("Retention and deletion","Local data remains until you delete individual records, clear TripRabbit’s app data, uninstall the app, or replace the data by restoring a backup. Trip records are not sent to the developer, so there is no server copy to delete. Files you export must be deleted from their chosen storage location separately.")}
             item{PolicySection("Children","TripRabbit is a general vehicle utility intended for adults and is not designed for children. It does not knowingly collect data from anyone, including children.")}
             item{PolicySection("Changes","If TripRabbit’s data practices change, this policy and the Google Play Data safety declaration will be updated before the changed version is distributed.")}
+            item{PolicySection("Feedback","The optional Send feedback action opens your email app with the app version and a draft addressed to the developer. You choose whether to send it and what to include. No trip records or backups are attached automatically.")}
             item{PolicySection("Contact","Privacy questions can be submitted using the developer contact details on TripRabbit’s Google Play store listing.")}
         }
     }
