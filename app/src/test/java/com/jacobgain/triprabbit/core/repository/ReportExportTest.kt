@@ -23,6 +23,27 @@ import java.time.YearMonth
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ReportExportTest {
+    @Test fun colourSurvivesBackupAndRestore() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, TripRabbitDatabase::class.java).build()
+        val file = File(context.cacheDir, "colour-backup.json")
+        try {
+            db.vehicleDao().insert(VehicleEntity(1, "Blue car", null, null, null, null, DistanceUnit.KILOMETERS, "blue", null, Instant.EPOCH, null, "motorcycle"))
+            val repository = DataRepositoryImpl(context, db)
+            repository.exportBackup(Uri.fromFile(file))
+            db.vehicleDao().deleteAll()
+            repository.restoreBackup(Uri.fromFile(file))
+            assertEquals("blue", db.vehicleDao().getById(1)!!.colorKey)
+            assertEquals("motorcycle", db.vehicleDao().getById(1)!!.iconKey)
+            // Older backups did not have an icon field.
+            val legacy = org.json.JSONObject(file.readText())
+            legacy.getJSONArray("vehicles").getJSONObject(0).getJSONObject("vehicle").remove("iconKey")
+            file.writeText(legacy.toString())
+            repository.restoreBackup(Uri.fromFile(file))
+            assertEquals("car", db.vehicleDao().getById(1)!!.iconKey)
+        } finally { db.close(); file.delete() }
+    }
+
     @Test fun exportsRangedCsvWithTripDetails() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, TripRabbitDatabase::class.java).build()

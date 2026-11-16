@@ -21,7 +21,7 @@ import com.jacobgain.triprabbit.R
 
 enum class AppIcon(@DrawableRes val resource: Int) {
     Home(R.drawable.ic_home), History(R.drawable.ic_history), Reports(R.drawable.ic_reports),
-    Settings(R.drawable.ic_settings), Car(R.drawable.ic_car), Garage(R.drawable.ic_garage), Add(R.drawable.ic_add), AddNavigation(R.drawable.ic_add_navigation),
+    Settings(R.drawable.ic_settings), Car(R.drawable.ic_car), Pickup(R.drawable.ic_pickup), Van(R.drawable.ic_van), Motorcycle(R.drawable.ic_motorcycle), Suv(R.drawable.ic_suv), Garage(R.drawable.ic_garage), Add(R.drawable.ic_add), AddNavigation(R.drawable.ic_add_navigation),
     Back(R.drawable.ic_back), Chevron(R.drawable.ic_chevron), Down(R.drawable.ic_down),
     Search(R.drawable.ic_search), Close(R.drawable.ic_close), Check(R.drawable.ic_check),
     Shield(R.drawable.ic_shield), Download(R.drawable.ic_download), Upload(R.drawable.ic_upload),

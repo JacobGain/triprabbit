@@ -201,7 +201,7 @@ fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, ex
                         DropdownMenu(expanded = exportMenuExpanded, onDismissRequest = { exportMenuExpanded = false }) {
                             DropdownMenuItem(text = { Text("All Vehicles") }, onClick = { exportMenuExpanded = false; onSelectExportVehicle(null) })
                             state.vehicles.forEach { car -> DropdownMenuItem(text = { Text(car.name, maxLines = 1) },
-                                onClick = { exportMenuExpanded = false; onSelectExportVehicle(car.id) }) }
+                                onClick = { exportMenuExpanded = false; onSelectExportVehicle(car.id) }, leadingIcon = { VehicleBadge(car.colorKey, iconKey = car.iconKey) }) }
                         }
                     }
                     ReportDateField("From", fromText, onFrom)

@@ -14,6 +14,8 @@ data class ReadingItem(
     val difference: Long?,
     val vehicleName: String? = null,
     val unit: String = "",
+    val vehicleColorKey: String? = null,
+    val vehicleIconKey: String = "car",
 )
 
 data class ReadingHistoryUiState(
@@ -50,7 +52,7 @@ class ReadingHistoryViewModel @Inject constructor(
                                 ?: if (index == 0) null else reading.value - chronological[index - 1].value)
                         }.toMap()
                         descending.map { reading ->
-                            ReadingItem(reading, differences[reading.id], vehicle.name, vehicle.odometerUnit.abbreviation)
+                            ReadingItem(reading, differences[reading.id], vehicle.name, vehicle.odometerUnit.abbreviation, vehicle.colorKey, vehicle.iconKey)
                         }
                     }.sortedWith(compareByDescending<ReadingItem> { it.reading.recordedAt }.thenByDescending { it.reading.id })
                     ReadingHistoryUiState(false, selected, items, available, preferences.pinInProgressTrips)

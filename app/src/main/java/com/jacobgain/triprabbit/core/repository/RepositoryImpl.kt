@@ -56,9 +56,9 @@ class SettingsRepositoryImpl @Inject constructor(private val dataSource: AppPref
 private fun VehicleInput.toEntity(now: Instant) = VehicleEntity(
     name = name.trim(), make = make.clean(), model = model.clean(), year = year,
     licensePlate = licensePlate.clean(), odometerUnit = odometerUnit, colorKey = colorKey.clean(),
-    notes = notes.clean(), createdAt = now, archivedAt = null,
+    notes = notes.clean(), createdAt = now, archivedAt = null, iconKey = iconKey,
 )
 
-private fun Vehicle.toEntity() = VehicleEntity(id, name.trim(), make.clean(), model.clean(), year, licensePlate.clean(), odometerUnit, colorKey.clean(), notes.clean(), createdAt, archivedAt)
+private fun Vehicle.toEntity() = VehicleEntity(id, name.trim(), make.clean(), model.clean(), year, licensePlate.clean(), odometerUnit, colorKey.clean(), notes.clean(), createdAt, archivedAt, iconKey)
 private fun OdometerReading.toEntity() = OdometerReadingEntity(id, vehicleId, value, recordedAt, note.clean(), createdAt, updatedAt, name.clean(), hasTime, startValue, inProgress)
 private fun String?.clean() = this?.trim()?.takeIf(String::isNotEmpty)

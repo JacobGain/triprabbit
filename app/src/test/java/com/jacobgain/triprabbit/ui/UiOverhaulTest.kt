@@ -88,6 +88,21 @@ class UiOverhaulTest {
         }
     }
 
+    @Test fun vehicleColourCanBeSelectedAndEdited() {
+        render {
+            var state by remember { mutableStateOf(VehicleEditorUiState(name = "Daily driver", editing = true, colorKey = "blue")) }
+            VehicleEditorContent(state, onUpdate = { state = it(state) })
+        }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Blue"))
+        compose.onNodeWithText("Blue").assertIsSelected()
+        compose.onNodeWithText("Red").performClick().assertIsSelected()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Select icon"))
+        compose.onNodeWithText("Select colour").assertExists()
+        compose.onNodeWithText("Motorcycle").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Car", substring = false).assertIsNotSelected()
+        capture("vehicle-colours-and-icons")
+    }
+
     @Test fun customAccentChangesTheAppPalette() {
         var selected = Color.Unspecified
         var background = Color.Unspecified
@@ -216,7 +231,7 @@ class UiOverhaulTest {
         var opened = 0L
         render(tab = "history") { ReadingHistoryContent(history.copy(items = listOf(ReadingItem(pending, null))), onEdit = { opened = it }) }
         capture("trip-in-progress")
-        compose.onNodeWithText("In progress").assertIsDisplayed()
+        compose.onAllNodesWithText("In progress").onLast().assertIsDisplayed()
         compose.onNodeWithText("Client visit").performClick()
         capture("trip-in-progress-details")
         compose.onNodeWithText("Close").performClick()
@@ -405,6 +420,22 @@ class UiOverhaulTest {
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun settingsLargeText() {
         render(fontScale = 2f, tab = "settings") { SettingsContent(SettingsUiState()) }
         capture("settings-large-text")
+    }
+
+    @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun previousReadingRemainsCompleteWithMultipleVehiclesAndLargeText() {
+        val previous = readings.first().copy(value = 123456789)
+        val second = vehicle.copy(id = 2, name = "Work truck")
+        render(fontScale = 2f) {
+            AddReadingContent(AddReadingUiState(vehicle, previous, recordedAt = now, vehicles = listOf(vehicle, second)))
+        }
+        val text = "Previous: 123,456,789 km"
+        compose.onNodeWithText(text).assertIsDisplayed()
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText(text).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertTrue(results.isNotEmpty())
+        assertFalse(results.single().hasVisualOverflow)
+        assertTrue((0 until results.single().lineCount).none { results.single().isLineEllipsized(it) })
+        capture("add-trip-previous-reading-large-text")
     }
 
     @Test @Config(qualifiers = "w320dp-h800dp-mdpi") fun formLargeText() {

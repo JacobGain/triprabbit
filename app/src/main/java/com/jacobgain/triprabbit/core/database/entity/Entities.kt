@@ -21,6 +21,7 @@ data class VehicleEntity(
     val notes: String?,
     @ColumnInfo(name = "created_at") val createdAt: Instant,
     @ColumnInfo(name = "archived_at") val archivedAt: Instant?,
+    @ColumnInfo(name = "icon_key", defaultValue = "'car'") val iconKey: String = "car",
 )
 
 @Entity(

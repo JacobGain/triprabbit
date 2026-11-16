@@ -11,10 +11,11 @@
         "year": 2021,
         "licensePlate": "SAMPLE1",
         "odometerUnit": "KILOMETERS",
-        "colorKey": null,
+        "colorKey": "blue",
         "notes": "Debug sample vehicle.",
         "createdAt": "2025-12-21T12:00:00Z",
-        "archivedAt": null
+        "archivedAt": null,
+        "iconKey": "car"
       },
       "readings": [
         {
@@ -4786,10 +4787,11 @@
         "year": 2023,
         "licensePlate": "SAMPLE2",
         "odometerUnit": "KILOMETERS",
-        "colorKey": null,
+        "colorKey": "red",
         "notes": "Debug sample vehicle.",
         "createdAt": "2025-12-21T12:00:00Z",
-        "archivedAt": null
+        "archivedAt": null,
+        "iconKey": "van"
       },
       "readings": [
         {
@@ -9561,10 +9563,11 @@
         "year": 2022,
         "licensePlate": "SAMPLE3",
         "odometerUnit": "MILES",
-        "colorKey": null,
+        "colorKey": "silver",
         "notes": "Debug sample vehicle.",
         "createdAt": "2025-12-21T12:00:00Z",
-        "archivedAt": null
+        "archivedAt": null,
+        "iconKey": "suv"
       },
       "readings": [
         {

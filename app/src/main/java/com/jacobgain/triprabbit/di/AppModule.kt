@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.jacobgain.triprabbit.core.database.TripRabbitDatabase
 import com.jacobgain.triprabbit.core.database.MIGRATION_1_2
 import com.jacobgain.triprabbit.core.database.MIGRATION_2_3
+import com.jacobgain.triprabbit.core.database.MIGRATION_4_5
 import com.jacobgain.triprabbit.core.database.MIGRATION_3_4
 import com.jacobgain.triprabbit.core.repository.*
 import dagger.Binds
@@ -19,7 +20,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
     @Provides @Singleton fun database(@ApplicationContext context: Context): TripRabbitDatabase =
-        Room.databaseBuilder(context, TripRabbitDatabase::class.java, "triprabbit.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        Room.databaseBuilder(context, TripRabbitDatabase::class.java, "triprabbit.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
     @Provides fun vehicleDao(db: TripRabbitDatabase) = db.vehicleDao()
     @Provides fun readingDao(db: TripRabbitDatabase) = db.odometerReadingDao()
 }

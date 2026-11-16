@@ -16,7 +16,7 @@ import javax.inject.Inject
 data class VehicleEditorUiState(
     val loading: Boolean = false, val name: String = "", val make: String = "", val model: String = "",
     val year: String = "", val licensePlate: String = "", val unit: DistanceUnit = DistanceUnit.KILOMETERS,
-    val colorKey: String = "", val notes: String = "", val initialReading: String = "", val editing: Boolean = false,
+    val colorKey: String = "", val iconKey: String = "car", val notes: String = "", val initialReading: String = "", val editing: Boolean = false,
     val error: String? = null, val saving: Boolean = false,
 )
 sealed interface VehicleEditorEffect { data class Saved(val vehicleId: Long) : VehicleEditorEffect }
@@ -37,7 +37,7 @@ class VehicleEditorViewModel @Inject constructor(
     init { if (vehicleId != null) viewModelScope.launch {
         repository.observeVehicle(vehicleId).filterNotNull().first().also { v ->
             original = v
-            _state.value = VehicleEditorUiState(name=v.name.take(VEHICLE_NAME_MAX_LENGTH), make=v.make.orEmpty(), model=v.model.orEmpty(), year=v.year?.toString().orEmpty(), licensePlate=v.licensePlate.orEmpty(), unit=v.odometerUnit, colorKey=v.colorKey.orEmpty(), notes=v.notes.orEmpty(), editing=true)
+            _state.value = VehicleEditorUiState(name=v.name.take(VEHICLE_NAME_MAX_LENGTH), make=v.make.orEmpty(), model=v.model.orEmpty(), year=v.year?.toString().orEmpty(), licensePlate=v.licensePlate.orEmpty(), unit=v.odometerUnit, colorKey=v.colorKey.orEmpty(), iconKey=v.iconKey, notes=v.notes.orEmpty(), editing=true)
         }
     } }
 
@@ -54,7 +54,7 @@ class VehicleEditorViewModel @Inject constructor(
         runCatching {
             if (s.editing) {
                 val old = requireNotNull(original)
-                repository.updateVehicle(old.copy(name=s.name.trim().take(VEHICLE_NAME_MAX_LENGTH), make=s.make.blankNull(), model=s.model.blankNull(), year=year, licensePlate=s.licensePlate.blankNull(), colorKey=s.colorKey.blankNull(), notes=s.notes.blankNull()))
+                repository.updateVehicle(old.copy(name=s.name.trim().take(VEHICLE_NAME_MAX_LENGTH), make=s.make.blankNull(), model=s.model.blankNull(), year=year, licensePlate=s.licensePlate.blankNull(), colorKey=s.colorKey.blankNull(), iconKey=s.iconKey, notes=s.notes.blankNull()))
                 old.id
              } else createVehicle(VehicleInput(
                 name = s.name.trim().take(VEHICLE_NAME_MAX_LENGTH),
@@ -64,6 +64,7 @@ class VehicleEditorViewModel @Inject constructor(
                 licensePlate = s.licensePlate.blankNull(),
                 odometerUnit = s.unit,
                 colorKey = s.colorKey.blankNull(),
+                iconKey = s.iconKey,
                 notes = s.notes.blankNull(),
             ), requireNotNull(initial), Instant.now())
         }.onSuccess { _effects.send(VehicleEditorEffect.Saved(it)) }.onFailure { e -> _state.update { it.copy(saving=false, error=e.message ?: "Couldn't save the vehicle. Try again.") } }

@@ -18,6 +18,7 @@ data class Vehicle(
     val notes: String?,
     val createdAt: Instant,
     val archivedAt: Instant?,
+    val iconKey: String = "car",
 )
 
 data class OdometerReading(
@@ -68,4 +69,5 @@ data class VehicleInput(
     val odometerUnit: DistanceUnit,
     val colorKey: String? = null,
     val notes: String? = null,
+    val iconKey: String = "car",
 )

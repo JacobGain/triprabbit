@@ -84,7 +84,8 @@ fun VehicleEditorContent(state: VehicleEditorUiState, onBack: () -> Unit = {},
                 FormField(state.year, { value -> onUpdate { it.copy(year = value.filter(Char::isDigit)) } }, "Year (optional)",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = !state.saving)
                 FormField(state.licensePlate, { value -> onUpdate { it.copy(licensePlate = value) } }, "License plate (optional)", enabled = !state.saving)
-                FormField(state.colorKey, { value -> onUpdate { it.copy(colorKey = value) } }, "Colour (optional)", enabled = !state.saving)
+                VehicleColourPicker(state.colorKey, !state.saving, state.iconKey) { value -> onUpdate { it.copy(colorKey = value) } }
+                VehicleIconPicker(state.iconKey, state.colorKey, !state.saving) { value -> onUpdate { it.copy(iconKey = value) } }
                 FormField(state.notes, { value -> onUpdate { it.copy(notes = value) } }, "Notes (optional)", singleLine = false, enabled = !state.saving)
             } }
             state.error?.let { error -> item { InlineMessage(error, error = true) } }
@@ -109,6 +110,7 @@ fun VehicleListScreen(vehicles: List<Vehicle>, latestValues: Map<Long, Long>, de
                         shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VehicleBadge(vehicle.colorKey, iconKey = vehicle.iconKey)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 AdaptiveSingleLineText(vehicle.name, style = MaterialTheme.typography.titleSmall, minFontSize = 12.sp)
                                 AdaptiveSingleLineText(latestValues[vehicle.id]?.let { "${it.grouped()} ${vehicle.odometerUnit.abbreviation}" } ?: "No odometer reading",
@@ -121,6 +123,7 @@ fun VehicleListScreen(vehicles: List<Vehicle>, latestValues: Map<Long, Long>, de
                     color = MaterialTheme.colorScheme.surface) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            VehicleBadge(vehicle.colorKey, iconKey = vehicle.iconKey)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(vehicle.name, style = MaterialTheme.typography.titleLarge)
                                 vehicle.subtitle()?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -164,7 +167,7 @@ fun VehicleDetailsContent(state: VehicleDetailsUiState, onBack: () -> Unit = {},
         if (state.loading) LoadingState(Modifier.padding(padding))
         else if (vehicle == null) Box(Modifier.padding(padding)) { EmptyState("Vehicle not found", "It may have been deleted.", "Go Back", onBack) }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            item { PageHeading(vehicle.name, vehicle.subtitle().orEmpty()) }
+            item { PageHeading(vehicle.name, vehicle.subtitle().orEmpty(), action = { VehicleBadge(vehicle.colorKey, iconKey = vehicle.iconKey) }) }
             item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SectionTitle("Current odometer")
                 state.readings.firstOrNull { !it.inProgress }?.let { OdometerDisplay(it.value, vehicle.odometerUnit) } ?: Text("No readings yet")

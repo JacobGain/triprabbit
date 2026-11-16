@@ -62,10 +62,12 @@ fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue
         Column(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    VehicleBadge(state.vehicle?.colorKey, iconKey = state.vehicle?.iconKey ?: "car")
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         AdaptiveSingleLineText(state.vehicle?.name ?: "Loading vehicle…", style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary)
-                        AdaptiveSingleLineText("Previous reading: ${state.previous?.value?.grouped() ?: "—"} ${state.vehicle?.odometerUnit?.abbreviation.orEmpty()}",
+                        Text("Previous: ${state.previous?.value?.grouped() ?: "—"} $unit",
+                            modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (state.vehicles.size > 1) Box {
@@ -74,11 +76,13 @@ fun AddReadingContent(state: AddReadingUiState, onBack: () -> Unit = {}, onValue
                             state.vehicles.forEach { car -> DropdownMenuItem(
                                 text = { Text(car.name, maxLines = 1) },
                                 onClick = { vehicleMenuExpanded = false; onSelectVehicle(car.id) },
+                                leadingIcon = { VehicleBadge(car.colorKey, iconKey = car.iconKey) },
                             ) }
                         }
                     }
                 }
             }
+
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SectionTitle("Odometer")
                 OdometerEditButton("Start odometer", state.startValue, startPlaceholder, unit, !state.saving) { editingOdometer = "start" }
@@ -205,8 +209,7 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
                     leadingIcon = if (selectedVehicleId == null) ({ TripIcon(AppIcon.Check, modifier = Modifier.size(16.dp)) }) else null)
                 state.vehicles.forEach { car ->
                     FilterChip(selected = selectedVehicleId == car.id, onClick = { selectedVehicleId = car.id },
-                        label = { Text(car.name.take(VEHICLE_NAME_MAX_LENGTH), maxLines = 1, overflow = TextOverflow.Ellipsis) }, shape = MaterialTheme.shapes.medium,
-                        leadingIcon = if (selectedVehicleId == car.id) ({ TripIcon(AppIcon.Check, modifier = Modifier.size(16.dp)) }) else null)
+                        label = { Text(car.name.take(VEHICLE_NAME_MAX_LENGTH), maxLines = 1, overflow = TextOverflow.Ellipsis) }, shape = MaterialTheme.shapes.medium)
                 }
             } }
             if (pinned.isNotEmpty()) {
@@ -236,22 +239,30 @@ fun ReadingHistoryContent(state: ReadingHistoryUiState, onBack: (() -> Unit)? = 
 
 @Composable
 private fun TripHistoryCard(item: ReadingItem, showPinned: Boolean, fallbackUnit: String, onClick: () -> Unit) {
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
     Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            VehicleBadge(item.vehicleColorKey, iconKey = item.vehicleIconKey)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.reading.name?.takeIf { it.isNotBlank() } ?: "Untitled trip", style = MaterialTheme.typography.titleMedium)
                 Text("${item.vehicleName?.take(VEHICLE_NAME_MAX_LENGTH)?.takeIf { it.isNotBlank() }?.let { "$it · " }.orEmpty()}${item.reading.recordedAt.displayDate()}",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    maxLines = if (largeText) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
+                if (largeText) TripHistoryStatus(item, showPinned, fallbackUnit)
             }
-            if (item.reading.inProgress) Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (showPinned) TripIcon(AppIcon.Pin, "Pinned", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                Text("In progress", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            } else Text("${item.difference?.grouped() ?: "—"}${(item.unit.ifBlank { fallbackUnit }).takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()}",
-                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            if (!largeText) TripHistoryStatus(item, showPinned, fallbackUnit)
             TripIcon(AppIcon.Chevron, "Trip details", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+@Composable
+private fun TripHistoryStatus(item: ReadingItem, showPinned: Boolean, fallbackUnit: String) {
+    if (item.reading.inProgress) Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (showPinned) TripIcon(AppIcon.Pin, "Pinned", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Text("In progress", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    } else Text("${item.difference?.grouped() ?: "—"}${(item.unit.ifBlank { fallbackUnit }).takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()}",
+        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
