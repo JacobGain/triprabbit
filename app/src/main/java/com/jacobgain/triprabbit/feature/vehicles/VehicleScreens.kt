@@ -24,7 +24,7 @@ import com.jacobgain.triprabbit.core.util.*
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-fun WelcomeScreen(onGetStarted: () -> Unit) {
+fun WelcomeScreen(onViewReports: (() -> Unit)? = null, onGetStarted: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 28.dp, top = 16.dp, end = 28.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
         Column(
             Modifier.fillMaxWidth(),
@@ -42,6 +42,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
         BrandArtworkSlot(BrandArtwork.welcome)
         PageHeading("Keep track of your mileage", "Log odometer readings, review your trips and export reports. Your records stay on this device.")
         PrimaryAction("Get Started", onGetStarted, icon = AppIcon.Chevron)
+        if (onViewReports != null) OutlinedButton(onClick = onViewReports, modifier = Modifier.fillMaxWidth()) { Text("Explore reports") }
         Text("Add your first vehicle to begin.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterHorizontally))
     }

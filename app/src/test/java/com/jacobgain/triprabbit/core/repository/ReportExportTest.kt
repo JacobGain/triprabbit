@@ -23,6 +23,13 @@ import java.time.YearMonth
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ReportExportTest {
+    @Test fun sampleReportHasConsistentDistancesAndFictionalVehicles() {
+        val trips = sampleReportTrips()
+        assertEquals(setOf("Daily driver", "Work truck"), trips.map { it.vehicleName }.toSet())
+        assertTrue(trips.all { it.finishValue - it.startValue!! == it.distance })
+        assertEquals("3 trips | 142 km recorded", pdfReportSummary(trips, "km"))
+    }
+
     @Test fun colourSurvivesBackupAndRestore() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, TripRabbitDatabase::class.java).build()

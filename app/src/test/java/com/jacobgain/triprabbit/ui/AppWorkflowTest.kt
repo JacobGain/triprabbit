@@ -22,6 +22,14 @@ import org.junit.Assert.assertEquals
 class AppWorkflowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun reportsCanBeExploredBeforeCreatingAVehicle() {
+        awaitText("Get Started")
+        compose.onNodeWithText("Explore reports").performScrollTo().performClick()
+        awaitText("View sample PDF")
+        compose.onNodeWithText("View sample PDF").assertIsDisplayed()
+        compose.onNodeWithText("No vehicles yet").assertIsDisplayed()
+    }
+
     @Test fun createLogEditAndNavigate() {
         awaitText("Get Started")
         compose.onNodeWithText("Get Started").performScrollTo().performClick()

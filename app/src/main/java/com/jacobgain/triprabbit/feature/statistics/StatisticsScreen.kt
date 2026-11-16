@@ -102,6 +102,40 @@ class StatisticsViewModel @Inject constructor(vehicles: VehicleRepository,
     private val messages = Channel<String>(Channel.BUFFERED)
     val effects = messages.receiveAsFlow()
     fun setDisplayUnit(unit: DistanceUnit) { displayUnit.value = unit }
+    var sampleUri by mutableStateOf<Uri?>(null)
+        private set
+    fun dismissSample() { sampleUri = null }
+    var previewIsSample by mutableStateOf(true)
+        private set
+    fun previewReport(vehicleIds: List<Long>, from: LocalDate, through: LocalDate, unit: DistanceUnit, allVehicles: Boolean) {
+        if (exporting) return
+        viewModelScope.launch {
+            exporting = true
+            try {
+                val uri = withContext(Dispatchers.IO) { data.createReportPreview(vehicleIds, from, through, unit, allVehicles) }
+                previewIsSample = false
+                sampleUri = uri
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                messages.send("Could not preview the report. Please try again.")
+            } finally { exporting = false }
+        }
+    }
+    fun previewSample() {
+        if (exporting) return
+        viewModelScope.launch {
+            exporting = true
+            try {
+                val uri = withContext(Dispatchers.IO) { data.createSampleReport() }
+                previewIsSample = true
+                sampleUri = uri
+            }
+            catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                messages.send("Could not create the sample report. Please try again.")
+            } finally { exporting = false }
+        }
+    }
     var exporting by mutableStateOf(false)
         private set
     fun export(uri: Uri, vehicleIds: List<Long>, from: LocalDate, through: LocalDate, unit: DistanceUnit, allVehicles: Boolean, pdf: Boolean) {
@@ -140,7 +174,11 @@ fun StatisticsScreen(onBack: (() -> Unit)?, onManageVehicles: () -> Unit = {}, v
         if (uri != null && selectedExportVehicles.isNotEmpty() && validRange) viewModel.export(uri, selectedExportVehicles.map { it.id }, from!!, through!!, state.displayUnit, allVehicles, true)
     }
     LaunchedEffect(viewModel) { viewModel.effects.collect { snackbar.showSnackbar(it) } }
+    viewModel.sampleUri?.let { PdfReportDialog(it, viewModel::dismissSample, isSample = viewModel.previewIsSample) }
     StatisticsContent(state, onBack, viewModel.exporting, snackbar,
+        onSample = viewModel::previewSample,
+        onPreview = { if (selectedExportVehicles.isNotEmpty() && validRange) viewModel.previewReport(
+            selectedExportVehicles.map { it.id }, from!!, through!!, state.displayUnit, allVehicles) },
         fromText = fromText, onFrom = { fromText = it }, throughText = throughText, onThrough = { throughText = it }, validRange = validRange,
         onExport = { if (selectedExportVehicles.isNotEmpty()) csv.launch("$exportName-mileage.csv") },
         onExportPdf = { if (selectedExportVehicles.isNotEmpty()) pdf.launch("$exportName-mileage.pdf") },
@@ -154,11 +192,15 @@ fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, ex
     snackbar: SnackbarHostState = remember { SnackbarHostState() }, onExport: () -> Unit = {},
     onManageVehicles: () -> Unit = {}, fromText: String = YearMonth.now().atDay(1).toString(), onFrom: (String) -> Unit = {},
     throughText: String = LocalDate.now().toString(), onThrough: (String) -> Unit = {}, validRange: Boolean = true, onExportPdf: () -> Unit = {},
-    exportVehicleId: Long? = null, onSelectExportVehicle: (Long?) -> Unit = {}, onSelectUnit: (DistanceUnit) -> Unit = {}) {
+    exportVehicleId: Long? = null, onSelectExportVehicle: (Long?) -> Unit = {}, onSelectUnit: (DistanceUnit) -> Unit = {}, onSample: () -> Unit = {}, onPreview: () -> Unit = {}) {
     var exportMenuExpanded by remember { mutableStateOf(false) }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, topBar = { if (onBack != null) DetailTopBar("Reports", onBack) }) { padding ->
         if (state.loading) LoadingState(Modifier.padding(padding))
-        else if (state.vehicle == null && state.vehicles.isEmpty()) Box(Modifier.padding(padding)) { EmptyState("No vehicles yet", "Add a vehicle to start tracking mileage reports.", "Vehicles", onManageVehicles) }
+        else if (state.vehicle == null && state.vehicles.isEmpty()) Column(Modifier.fillMaxSize().padding(padding).padding(20.dp)) {
+            PageHeading("Reports", "See what your mileage report will look like.")
+            OutlinedButton(onClick = onSample, enabled = !exporting, modifier = Modifier.fillMaxWidth()) { Text("View sample PDF") }
+            EmptyState("No vehicles yet", "Add a vehicle to start tracking mileage reports.", "Vehicles", onManageVehicles)
+        }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp,24.dp,20.dp,28.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item { PageHeading("Reports", "") }
             item {
@@ -208,6 +250,7 @@ fun StatisticsContent(state: StatisticsUiState, onBack: (() -> Unit)? = null, ex
                     ReportDateField("Through", throughText, onThrough)
                     if (!validRange) Text("Enter a valid date range.", color = MaterialTheme.colorScheme.error)
                     PrimaryAction("Export PDF", onExportPdf, icon = AppIcon.Download, enabled = validRange, busy = exporting)
+                    OutlinedButton(onClick = onPreview, enabled = validRange && !exporting, modifier = Modifier.fillMaxWidth()) { Text("Preview PDF") }
                     OutlinedButton(onClick = onExport, enabled = validRange && !exporting, modifier = Modifier.fillMaxWidth()) { Text("Export CSV") }
                 }
             }

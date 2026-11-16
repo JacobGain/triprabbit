@@ -43,6 +43,8 @@ interface SettingsRepository {
 
 data class BackupSummary(val vehicleCount: Int, val readingCount: Int, val exportedAt: Instant)
 interface DataRepository {
+    suspend fun createSampleReport(): Uri
+    suspend fun createReportPreview(vehicleIds: List<Long>, from: LocalDate, through: LocalDate, unit: DistanceUnit, allVehicles: Boolean): Uri
     suspend fun exportBackup(uri: Uri): BackupSummary
     suspend fun inspectBackup(uri: Uri): BackupSummary
     suspend fun restoreBackup(uri: Uri): BackupSummary

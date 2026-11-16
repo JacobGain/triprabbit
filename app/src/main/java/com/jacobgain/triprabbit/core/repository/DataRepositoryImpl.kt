@@ -29,6 +29,21 @@ class DataRepositoryImpl @Inject constructor(
 ) : DataRepository {
     private val resolver: ContentResolver get() = context.contentResolver
 
+    override suspend fun createSampleReport(): Uri {
+        val directory = java.io.File(context.cacheDir, "reports").apply { mkdirs() }
+        val file = java.io.File(directory, "TripRabbit-sample.pdf")
+        writeTripReportPdf(Uri.fromFile(file), "All Vehicles", "km", LocalDate.of(2026, 9, 1),
+            LocalDate.of(2026, 9, 30), true, sampleReportTrips(), sample = true)
+        return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.reports", file)
+    }
+
+    override suspend fun createReportPreview(vehicleIds: List<Long>, from: LocalDate, through: LocalDate, unit: DistanceUnit, allVehicles: Boolean): Uri {
+        val directory = java.io.File(context.cacheDir, "reports").apply { mkdirs() }
+        val file = java.io.File(directory, "TripRabbit-preview.pdf")
+        exportVehiclesReport(Uri.fromFile(file), vehicleIds, from, through, unit, allVehicles, pdf = true)
+        return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.reports", file)
+    }
+
     override suspend fun exportBackup(uri: Uri): BackupSummary {
         val vehicles=database.vehicleDao().getAll();val readings=database.odometerReadingDao().getAll();val now=Instant.now()
         val root=JSONObject().put("version",1).put("exportedAt",now.toString()).put("vehicles",JSONArray().apply{vehicles.forEach{v->put(JSONObject().put("vehicle",v.json()).put("readings",JSONArray().apply{readings.filter{it.vehicleId==v.id}.forEach{put(it.json())}}))}})
@@ -120,6 +135,7 @@ class DataRepositoryImpl @Inject constructor(
         through: LocalDate,
         allVehicles: Boolean,
         trips: List<PdfReportTrip>,
+        sample: Boolean = false,
     ) {
         val document = PdfDocument()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.BLACK; textSize = 11f }
@@ -192,12 +208,14 @@ class DataRepositoryImpl @Inject constructor(
         }
         try {
             paragraph(pdfReportTitle(vehicleTitle), 20f, gapAfter = 6f)
+            if (sample) paragraph("Sample report - fictional data", 12f, bold = true, gapAfter = 8f)
             paragraph("$from to $through  |  Distance in $unit", 11f, gapAfter = 2f)
             paragraph(pdfReportSummary(trips, unit), 11f, gapAfter = 14f)
             if (trips.isEmpty()) paragraph("No trips in this date range.", 11f)
             groupPdfTripsByMonth(trips).forEach { (month, monthTrips) ->
                 paragraph(month.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
                     13f, bold = true, gapBefore = 4f, gapAfter = 5f)
+                paragraph(pdfReportSummary(monthTrips, unit), 10f, gapAfter = 8f)
                 monthTrips.forEach { trip -> tripItem(trip, includeVehicle = allVehicles) }
             }
             page?.let(document::finishPage)
@@ -260,3 +278,9 @@ private fun convertUnit(value: Long, from: DistanceUnit, to: DistanceUnit): Long
 }
 private fun JSONObject.stringOrNull(key:String)=if(!has(key)||isNull(key))null else getString(key)
 private fun csv(value:String)="\"${value.replace("\"","\"\"")}\""
+
+internal fun sampleReportTrips() = listOf(
+    PdfReportTrip("Daily driver", LocalDate.of(2026, 9, 3), "Office commute", "Return journey", 24000, 24036, 36),
+    PdfReportTrip("Work truck", LocalDate.of(2026, 9, 8), "Client visit", "Site inspection", 81000, 81084, 84),
+    PdfReportTrip("Daily driver", LocalDate.of(2026, 9, 18), "Supply collection", "Office supplies", 24120, 24142, 22),
+)

@@ -51,7 +51,7 @@ fun TripRabbitApp(viewModel: AppViewModel = hiltViewModel()) {
         NavHost(nav,Routes.Gate,Modifier.widthIn(max = 840.dp).fillMaxSize()) {
             composable(Routes.Gate){
                 when { app.loading -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-                    app.vehicles.isEmpty() -> WelcomeScreen{nav.navigate(Routes.AddVehicle)}
+                    app.vehicles.isEmpty() -> WelcomeScreen(onViewReports = { nav.navigate(Routes.Reports) }) {nav.navigate(Routes.AddVehicle)}
                     else -> LaunchedEffect(Unit){nav.navigate(Routes.HistoryMain){popUpTo(Routes.Gate){inclusive=true}}}
                 }
             }

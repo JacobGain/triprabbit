@@ -1,6 +1,7 @@
 package com.jacobgain.triprabbit.core.repository
 
 import android.net.Uri
+import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -33,5 +34,50 @@ class DataRepositoryTest {
         assertTrue(runCatching{repository.restoreBackup(Uri.fromFile(file))}.isFailure)
         assertEquals(listOf(120_000L,120_350L),db.odometerReadingDao().getAll().map{it.value})
     }
+    @Test
+    fun samplePdfOpensWithoutAddingRecords() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, TripRabbitDatabase::class.java).build()
+        try {
+            val uri = DataRepositoryImpl(context, db).createSampleReport()
+            assertEquals("content", uri.scheme)
+            val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+            assertTrue(bytes.decodeToString().startsWith("%PDF-"))
+            android.graphics.pdf.PdfRenderer(context.contentResolver.openFileDescriptor(uri, "r")!!).use {
+                assertTrue(it.pageCount > 0)
+                it.openPage(0).use { page -> assertTrue(page.width > 0) }
+            }
+            assertTrue(db.vehicleDao().getAll().isEmpty())
+            assertTrue(db.odometerReadingDao().getAll().isEmpty())
+        } finally { db.close() }
+    }
+
+    @Test fun livePreviewMatchesExportedPdf() = runBlocking {
+        seed()
+        val from = LocalDate.parse("2026-09-20")
+        val through = LocalDate.parse("2026-09-22")
+        val uri = repository.createReportPreview(listOf(1), from, through, DistanceUnit.MILES, true)
+        val exported = File(directory, "preview-comparison.pdf")
+        repository.exportVehiclesReport(Uri.fromFile(exported), listOf(1), from, through, DistanceUnit.MILES, true, true)
+        fun render(uri: Uri): List<android.graphics.Bitmap> {
+            return android.graphics.pdf.PdfRenderer(context.contentResolver.openFileDescriptor(uri, "r")!!).use { renderer ->
+                List(renderer.pageCount) { index -> renderer.openPage(index).use { page ->
+                    android.graphics.Bitmap.createBitmap(page.width, page.height, android.graphics.Bitmap.Config.ARGB_8888).also {
+                        it.eraseColor(android.graphics.Color.WHITE)
+                        page.render(it, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    }
+                } }
+            }
+        }
+        val preview = render(uri)
+        val output = render(Uri.fromFile(exported))
+        try {
+            assertEquals(output.size, preview.size)
+            preview.zip(output).forEach { (a, b) -> assertTrue(a.sameAs(b)) }
+            assertEquals(1, db.vehicleDao().getAll().size)
+            assertEquals(2, db.odometerReadingDao().getAll().size)
+        } finally { (preview + output).forEach { it.recycle() } }
+    }
+
     private suspend fun seed(){db.vehicleDao().insertAll(listOf(VehicleEntity(1,"Golf","Volkswagen","Golf",2017,null,DistanceUnit.KILOMETERS,null,null,Instant.EPOCH,null)));db.odometerReadingDao().insertAll(listOf(OdometerReadingEntity(1,1,120_000,Instant.parse("2026-09-01T12:00:00Z"),null,Instant.EPOCH,null),OdometerReadingEntity(2,1,120_350,Instant.parse("2026-09-21T12:00:00Z"),"Trip",Instant.EPOCH,null,"Construction site")))}
 }

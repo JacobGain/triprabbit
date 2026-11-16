@@ -88,6 +88,30 @@ class UiOverhaulTest {
         }
     }
 
+    @Test fun livePdfPreviewIsDirectlyBelowExportAndHonoursDateValidation() {
+        var opened = false
+        var valid by mutableStateOf(true)
+        render { StatisticsContent(StatisticsUiState(false, vehicle, readings, stats, vehicles = listOf(vehicle)),
+            validRange = valid, onPreview = { opened = true }) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Preview PDF"))
+        compose.onNodeWithText("Preview PDF").assertIsEnabled().performClick()
+        assertTrue(opened)
+        val exportBounds = compose.onNodeWithText("Export PDF").fetchSemanticsNode().boundsInRoot
+        val previewBounds = compose.onNodeWithText("Preview PDF").fetchSemanticsNode().boundsInRoot
+        assertTrue(previewBounds.top >= exportBounds.bottom)
+        compose.onNodeWithText("View sample PDF").assertDoesNotExist()
+        compose.runOnIdle { valid = false }
+        compose.onNodeWithText("Preview PDF").assertIsNotEnabled()
+    }
+
+    @Test fun sampleReportIsAvailableWithoutVehicles() {
+        var opened = false
+        render { StatisticsContent(StatisticsUiState(loading = false), onSample = { opened = true }) }
+        compose.onNodeWithText("View sample PDF").assertIsDisplayed().performClick()
+        assertTrue(opened)
+        capture("reports-empty-sample")
+    }
+
     @Test fun vehicleColourCanBeSelectedAndEdited() {
         render {
             var state by remember { mutableStateOf(VehicleEditorUiState(name = "Daily driver", editing = true, colorKey = "blue")) }
